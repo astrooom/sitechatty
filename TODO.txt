@@ -3,3 +3,5 @@
 - Remove duplicates from the vector db. So pages that contain the same content can be removed into one entry in some way.
 - Do not include auth links? Login page etc pretty useless.
 - Add decorator to admin-only endpoints marked with ADMIN_ENDPOINT
+
+- Auto pull phi3 and nomic-embed-text post-starting the ollama container.

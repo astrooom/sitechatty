@@ -1,4 +1,4 @@
-FROM python:3.12.1-slim
+FROM python:3.11.9-slim
 
 ARG SSL_KEYFILE
 ARG SSL_CERTFILE
@@ -6,10 +6,6 @@ ENV SSL_CERTFILE=${SSL_CERTFILE}
 ENV SSL_KEYFILE=${SSL_KEYFILE}
 
 ENV PYTHONUNBUFFERED 1
-
-# RUN apk update && \
-#     apk add --no-cache libpq-dev gcc musl-dev && \
-#     rm -rf /var/cache/apk/*
 
 # Required for wheels.
 RUN apt-get update && apt-get install -y libpq-dev build-essential
@@ -28,3 +24,7 @@ RUN export FLASK_APP=run.py
 
 RUN pip install --upgrade pip && \
     pip install -r ./app/requirements.txt
+
+# Install playwright
+RUN playwright install
+RUN playwright install-deps
