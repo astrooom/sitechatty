@@ -1,0 +1,158 @@
+version: "3.8"
+
+services:
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SSL_CERTFILE
+        - SSL_KEYFILE 
+    restart: unless-stopped
+    volumes:
+      - .:/flask_app:rw
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    ports:
+      - ${FLASK_PORT:-3001}:${FLASK_PORT:-3001}
+    healthcheck:
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    environment:
+      - TZ=${TZ:-UTC}
+      - DEPLOYMENT_TYPE=production
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - AUTH_TOKEN=${FLASK_AUTH_TOKEN}
+      - SECRET_KEY=${FLASK_SECRET_KEY}
+      - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      - REDIS_URL=redis://cache:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    command: /bin/sh -c "env && gunicorn --reload --keyfile=${SSL_KEYFILE} --certfile=${SSL_CERTFILE} --worker-class=gthread --workers 16 --threads=4 --timeout 30 -b 0.0.0.0:${FLASK_PORT:-3001} run:app"
+    depends_on:
+      - cache
+      - postgres
+      - chromadb
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SSL_CERTFILE
+        - SSL_KEYFILE
+    restart: unless-stopped
+    command: sh -c "watchmedo auto-restart --directory=./app/utils --pattern=*.py --recursive -- celery -A run:celery worker -n celery@host --loglevel=info"
+    environment:
+      - TZ=${TZ:-UTC}
+      - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      - REDIS_URL=redis://cache:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - .:/flask_app:rw
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - cache
+      - postgres
+      - chromadb
+
+  # celery-beat: # Likely not needed..
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     args:
+  #       - SSL_CERTFILE
+  #       - SSL_KEYFILE 
+  #   restart: unless-stopped
+  #   command: sh -c "watchmedo auto-restart --directory=./app/utils --pattern=*.py --recursive -- celery -A run:celery beat -n celery@host --loglevel=info"
+  #   environment:
+  #     - TZ=${TZ:-UTC}
+  #     - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+  #     - REDIS_URL=redis://cache:6379
+  #   volumes:
+#     - .:/flask_app:rw
+  # - /etc/letsencrypt:/etc/letsencrypt:ro
+  #   depends_on:
+  #     - cache
+  #     - postgres
+  #     - chromadb
+
+  cache:
+    image: redis:7
+    restart: unless-stopped
+    expose: ["6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16.3-alpine3.19
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      # - POSTGRES_USER=${POSTGRES_USER:-postgres} # Not needed - default user is 'postgres' with above password.
+      # - POSTGRES_DB=${POSTGRES_DB:-postgres} # Not needed - default database name is 'postgres'.
+    expose: ["5432"]
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d postgres -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chromadb:
+    image: chromadb/chroma:0.5.0
+    restart: unless-stopped
+    command: "--workers 1 --host 0.0.0.0 --port 8000 --proxy-headers --log-config chromadb/log_config.yml --timeout-keep-alive 30"
+    environment:
+      - TZ=${TZ:-UTC}
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+
+      - ALLOW_RESET=FALSE # Better to delete docker volume instead..
+    expose: ["8000"]
+    volumes:
+      - chromadb_volume:/chroma/chroma
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dbgate: # Tool for inspecting dbs.
+    image: dbgate/dbgate
+    restart: unless-stopped
+    ports:
+      - ${DBGATE_PORT:-3002}:3000
+    volumes:
+      - chromadb_volume:/chroma/chroma # Adds access to the chroma db sqlite file
+    environment:
+      TZ: ${TZ:-UTC}
+      LOGINS: administrator
+      LOGIN_PASSWORD_administrator: ${DBGATE_LOGIN_PASSWORD:-iVVstTvRS8CDHRS3}
+
+      CONNECTIONS: postgres,chromadb
+      LABEL_postgres: Postgres
+      URL_postgres: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      ENGINE_postgres: postgres@dbgate-plugin-postgres
+
+      LABEL_chromadb: SQLite
+      FILE_chromadb: /chroma/chroma/chroma.sqlite3
+      ENGINE_chromadb: sqlite@dbgate-plugin-sqlite
+
+  ollama:
+    image: 'ollama/ollama:latest'
+    restart: unless-stopped
+    volumes:
+      - ollama_volume:/root/.ollama
+    pull_policy: always
+    tty: true
+    
+volumes:
+  postgres_volume:
+  chromadb_volume:
+  ollama_volume:
