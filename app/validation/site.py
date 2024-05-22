@@ -28,7 +28,9 @@ class CrawlerCrawlForm(Form):
     site_id = IntegerField('site_id', validators=[DataRequired()])
     urls = FieldList(StringField('url'), validators=[max_list_length(999)]) # optionsl if all_urls is True
     all_urls = BooleanField('all_urls', default=False)
-
+    delete_first = BooleanField('delete_first', default=False)
+    do_cleanup = BooleanField('do_cleanup', default=False)
+        
     def validate_site_id(self, site_id):
         if not Site.query.filter_by(id=site_id.data).first():
             raise ValidationError('Site not found')

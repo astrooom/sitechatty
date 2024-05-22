@@ -1,4 +1,4 @@
-from app.utils.decorators import login_required_or_bearer_token, login_required
+from app.utils.decorators import login_required
 from flask import Blueprint, jsonify, request, session
 from app import db, chroma_client
 from app.models.models import ScannerMainUrl, ScannerFoundUrls, Site, User
@@ -8,6 +8,7 @@ from app.utils.celery import scan_url, crawl_urls
 from sqlalchemy.orm import aliased
 from langchain_community.vectorstores import Chroma
 from app.utils.embeddings import embeddings
+from app.utils.vector import get_search_results
 
 site = Blueprint('site', __name__)
 
@@ -112,16 +113,24 @@ def crawler_pull(site_id):
     site_id = form.site_id.data
     urls = form.urls.data # Will be chooseable through the UI.
     all_urls = form.all_urls.data
+    delete_first = form.delete_first.data
+    do_cleanup = form.do_cleanup.data
+    
+    if delete_first:
+        return jsonify({"error": "Disabled for security."}), 400
+    
+    if do_cleanup and not all_urls:
+        return jsonify({"error": "Must use all_urls if do_cleanup is true"}), 400
     
     if all_urls:
-        # Get all scanned urls from site
+        # Get all from site -> main urls -> scanned urls
         # Site -> Main urls -> Scanned urls
         main_url_alias = aliased(ScannerMainUrl)
         site_scanned_query = db.session.query(ScannerFoundUrls.url).join(main_url_alias, ScannerFoundUrls.main_id == main_url_alias.id).filter(main_url_alias.site_id == site_id).all()
         urls = [result[0] for result in site_scanned_query]
 
     task = crawl_urls.apply_async(
-        args=[int(site_id), list(urls)],
+        args=[int(site_id), list(urls), bool(delete_first), bool(do_cleanup)],
     )
 
     return jsonify({"task_id": task.id}), 202
@@ -149,9 +158,28 @@ def crawler_get(site_id):
     
     return jsonify({"collection": collection.get()}), 200
 
+@site.route('/<int:site_id>/crawler-count', methods=['GET'])
+@login_required
+def crawler_count(site_id):
+    """
+    This endpoint is used to get the number of urls in a website's "scanned" urls.
+    """
+    user_id = session["user_id"]
+    
+    # Check that the site belongs to the user
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        return jsonify({"error": "Site not found"}), 404
+    
+    collection_name = f"{site.name}_{site.user_id}"
+    collection = chroma_client.get_collection(collection_name)
+    
+    return jsonify({"count": collection.count()}), 200
+
 @site.route('/<int:site_id>/similarity-search', methods=['POST'])
 @login_required
 def similarity_search(site_id):
+    # ADMIN ENDPOINT
     """
     This endpoint is used to get results of a similarity search from the vector db through a query
     """
@@ -165,21 +193,29 @@ def similarity_search(site_id):
     if not site:
         return jsonify({"error": "Site not found"}), 404
     
-    langchain_chroma = Chroma(
-    client=chroma_client,
-    collection_name=f"{site.name}_{site.user_id}",
-    embedding_function=embeddings,
-)
+    query = combined_data['query']
     
-    docs = langchain_chroma.similarity_search(combined_data['query'])
+    search_results = get_search_results(query, site)
     
-    context = "\n".join([doc.page_content for doc in docs])
-    
-    return jsonify({"context": context}), 200
+    return jsonify({"search_results": search_results}), 200
 
+@site.route('/<int:site_id>/chat', methods=['POST'])
+@login_required
+def chat(site_id):
+    user_id = session["user_id"]
     
+    json = request.get_json(silent=True)
+    combined_data = {**json, "site_id": site_id}
+    
+    # Check that the site belongs to the user
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        return jsonify({"error": "Site not found"}), 404
+    
+    # Find some way to store chatr history and retrieve it for the same chat window if reloading for example.
+    
+    query = combined_data['query']
+    search_results = get_search_results(query, site)
+    
+    # Add chat history to db.
 
-@site.route('/test', methods=['GET'])
-@login_required_or_bearer_token
-def test():
-    return jsonify({"Hello": "World"}), 200

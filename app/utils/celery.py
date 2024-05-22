@@ -12,7 +12,7 @@ def scan_url(base_url, site_id, max_depth):
     scanner.start_scanning()
     
 @celery.task
-def crawl_urls(site_id: int, urls: list):
+def crawl_urls(site_id: int, urls: list, delete_first: bool = False, do_cleanup: bool = False):
     # Get the site from the DB
     site = Site.query.filter_by(id=site_id).first()
     if not site:
@@ -21,7 +21,10 @@ def crawl_urls(site_id: int, urls: list):
     # Name the collection <site_name>_<user_id> to avoid overwriting same site names accross users.
     collection_name = f"{site.name}_{site.user_id}"
     
+    if delete_first:
+        chroma_client.delete_collection(collection_name)
+
     collection = chroma_client.get_or_create_collection(collection_name, embedding_function=embeddings)
     
     crawler = Crawler(collection)
-    crawler.process_urls(urls)
+    crawler.process_urls(urls, do_cleanup=do_cleanup)

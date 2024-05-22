@@ -5,3 +5,5 @@
 - Add decorator to admin-only endpoints marked with ADMIN_ENDPOINT
 
 - Auto pull phi3 and nomic-embed-text post-starting the ollama container.
+
+
