@@ -1,4 +1,3 @@
-- Switch to FireCrawl
 - Add rate-limiting
 - Remove duplicates from the vector db. So pages that contain the same content can be removed into one entry in some way.
 - Do not include auth links? Login page etc pretty useless.

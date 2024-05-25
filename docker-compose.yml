@@ -1,16 +1,29 @@
-version: "3.8"
+version: "3.9"
 
 services:
+  monorepo:
+    build:
+      context: ./.devcontainer
+      dockerfile: Dockerfile
+      args:
+        VARIANT: 20
+    volumes:
+      - .:/workspace:cached
+    command: sleep infinity
+    expose: ["3000"]
+    profiles:
+      - dev
+
   flask:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       args:
         - SSL_CERTFILE
         - SSL_KEYFILE 
     restart: unless-stopped
     volumes:
-      - .:/flask_app:rw
+      - ./backend:/flask_app:rw
       - /etc/letsencrypt:/etc/letsencrypt:ro
     ports:
       - ${FLASK_PORT:-3001}:${FLASK_PORT:-3001}
@@ -23,7 +36,7 @@ services:
       - DEPLOYMENT_TYPE=production
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      - AUTH_TOKEN=${FLASK_AUTH_TOKEN}
+      - ADMIN_AUTH_TOKEN=${FLASK_ADMIN_AUTH_TOKEN}
       - SECRET_KEY=${FLASK_SECRET_KEY}
       - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
       - REDIS_URL=redis://cache:6379
@@ -33,10 +46,13 @@ services:
       - cache
       - postgres
       - chromadb
+    profiles:
+      - dev
+      - production
 
   celery-worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       args:
         - SSL_CERTFILE
@@ -49,16 +65,19 @@ services:
       - REDIS_URL=redis://cache:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - .:/flask_app:rw
+      - ./backend:/flask_app:rw
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - cache
       - postgres
       - chromadb
+    profiles:
+      - dev
+      - production
 
   # celery-beat: # Likely not needed..
   #   build:
-  #     context: .
+  #     context: ./backend
   #     dockerfile: Dockerfile
   #     args:
   #       - SSL_CERTFILE
@@ -70,7 +89,7 @@ services:
   #     - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
   #     - REDIS_URL=redis://cache:6379
   #   volumes:
-#     - .:/flask_app:rw
+#     - ./backend:/flask_app:rw
   # - /etc/letsencrypt:/etc/letsencrypt:ro
   #   depends_on:
   #     - cache
@@ -86,6 +105,9 @@ services:
       interval: 1s
       timeout: 3s
       retries: 5
+    profiles:
+      - dev
+      - production
 
   postgres:
     image: postgres:16.3-alpine3.19
@@ -103,6 +125,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - dev
+      - production
 
   chromadb:
     image: chromadb/chroma:0.5.0
@@ -122,6 +147,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles:
+      - dev
+      - production
 
   dbgate: # Tool for inspecting dbs.
     image: dbgate/dbgate
@@ -143,16 +171,19 @@ services:
       LABEL_chromadb: SQLite
       FILE_chromadb: /chroma/chroma/chroma.sqlite3
       ENGINE_chromadb: sqlite@dbgate-plugin-sqlite
+    profiles:
+      - dev
+      - production
 
-  ollama:
-    image: 'ollama/ollama:latest'
-    restart: unless-stopped
-    volumes:
-      - ollama_volume:/root/.ollama
-    pull_policy: always
-    tty: true
+  # ollama:
+  #   image: 'ollama/ollama:latest'
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama_volume:/root/.ollama
+  #   pull_policy: always
+  #   tty: true
     
 volumes:
   postgres_volume:
   chromadb_volume:
-  ollama_volume:
+  # ollama_volume:

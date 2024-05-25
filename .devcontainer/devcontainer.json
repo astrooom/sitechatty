@@ -1,0 +1,46 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
+{
+  "name": "SiteChattyContainer",
+  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "monorepo",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-from-docker:1": {},
+    "ghcr.io/prulloac/devcontainer-features/bun:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "esbenp.prettier-vscode@9.14.0",
+        "bradlc.vscode-tailwindcss",
+        "mattpocock.ts-error-translator",
+        "ms-python.python",
+        "ms-python.autopep8",
+
+        // Optional
+        "Codeium.codeium"
+      ],
+      "settings": {
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  // "forwardPorts": [
+  //   "dbgate:3002"
+  // ],
+  // "portsAttributes": {
+
+  //   "dbgate:3002": {
+  //     "label": "DBGate"
+  //   }
+  // },
+  // Fix for "detected dubious ownership in repository at '/workspace'" error...
+  "postCreateCommand": {
+    "detected dubious ownership": "git config --global --add safe.directory ${containerWorkspaceFolder}"
+  }
+  // "initializeCommand": "${PWD}/preInitCommands.sh"
+}
