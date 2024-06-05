@@ -10,6 +10,7 @@ import trafilatura
 from app.utils.date import strdate_to_intdate
 import json
 from app.utils.classify_url import classify_url
+from app.utils.vector import generate_upsertables
 
 class Crawler:
     def __init__(self, chroma_collection):
@@ -72,50 +73,52 @@ class Crawler:
                 print(f"Error extracting content (skipping) {url}: {e}")
                 continue
             
+            upsertables = generate_upsertables(source=url, source_type="webpage", content=content, page_date=strdate_to_intdate(date_str), display_title=title)
+            for upsertable in upsertables:
+                self.chroma_collection.upsert(
+                    documents=[upsertable['document']],
+                    metadatas=[upsertable['metadata']],
+                    ids=[upsertable['id']]
+                )
+                added_chunk_ids.append(upsertable['id'])
             
-            updated_at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-            metadata = {
-                    "source": url,
-                    "source_type": "webpage",
-                    "page_date": strdate_to_intdate(date_str), # Allows filtering by gt and lt operators (https://docs.trychroma.com/guides#using-logical-operators)
-                    "updated_at_datetime": updated_at,
-                    "type": classify_url(url),
-            }
+            
+            # updated_at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            # metadata = {
+            #         "source": url,
+            #         "source_type": "webpage",
+            #         "page_date": strdate_to_intdate(date_str), # Allows filtering by gt and lt operators (https://docs.trychroma.com/guides#using-logical-operators)
+            #         "updated_at_datetime": updated_at,
+            #         "type": classify_url(url),
+            # }
 
             # ? Consider adding RAG step here to "grab relevant content from the body into markdown"
             # If so, we can change the RecursiveCharacterTextSplitter to a DocumentTextSplitter with markdown.
             
-            chunks = self.chunk_text(content)
+            #chunks = self.chunk_text(content)
 
-            for idx, chunk in enumerate(chunks):
-                document = json.dumps({
-                    "title": title,
-                    "content": chunk,
-                    "chunk_index": idx
-                })
+            # for idx, chunk in enumerate(chunks):
+            #     document = json.dumps({
+            #         "title": title,
+            #         "content": chunk,
+            #         "chunk_index": idx
+            #     })
             
-                chunk_id = hashlib.md5(f"{url}_{idx}".encode('utf-8')).hexdigest()
+            #     chunk_id = hashlib.md5(f"{url}_{idx}".encode('utf-8')).hexdigest()
         
-                # Save each document to the vector DB as it is crawled
-                self.upsert_to_db(
-                    id=chunk_id,
-                    document=document, 
-                    metadata=metadata
-                )
+            #     # Save each document to the vector DB as it is crawled
+            #     self.upsert_to_db(
+            #         id=chunk_id,
+            #         document=document, 
+            #         metadata=metadata
+            #     )
             
-                added_chunk_ids.append(chunk_id)
+            #     added_chunk_ids.append(chunk_id)
             
         if do_cleanup:
             """Only run if doing full url crawling"""
             print("Cleaning up old chunks...")
             self.cleanup_old_chunks(added_chunk_ids)
-
-    def upsert_to_db(self, id: str, document: str, metadata: dict):
-        self.chroma_collection.upsert(
-            documents=[document],
-            metadatas=[metadata],
-            ids=[id]
-        )
     
     def get_existing_chunks_ids(self) -> List[dict]:
         results = self.chroma_collection.query(

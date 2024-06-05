@@ -2,6 +2,7 @@ from wtforms import Form, StringField, IntegerField, FieldList, BooleanField
 from wtforms.validators import Length, DataRequired, ValidationError, Regexp
 from app.models.models import Site
 
+LONGFORM_TEXT_MAX = 65_535
 
 def max_list_length(max_length):
     def _max_list_length(form, field):
@@ -44,3 +45,10 @@ class CrawlerCrawlForm(Form):
             return False
 
         return True
+    
+class AddTextInputForm(Form):
+    title = StringField('title', validators=[DataRequired(), Length(min=4, max=80)])
+    content = StringField('content', validators=[DataRequired(), Length(min=4, max=LONGFORM_TEXT_MAX)])
+
+    
+    

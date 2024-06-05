@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 
 # Define keyword lists
 KEYWORDS = {
@@ -40,8 +41,30 @@ def classify_url(url):
     """
     Classifies a url based on its content.
     """
+    
+    if not is_valid_url(url):
+        return ""
+    
     # Determine the type based on the presence of keywords in the URL
     for type, pattern in PATTERNS.items():
         if pattern.search(url):
             return type
     return None
+
+
+def is_valid_url(url: str) -> bool:
+    """
+    Checks if the given string has a basic URL structure.
+
+    Args:
+        url (str): The URL string to validate.
+
+    Returns:
+        bool: True if the URL seems valid, False otherwise.
+    """
+
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False

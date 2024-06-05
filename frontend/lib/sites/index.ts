@@ -110,3 +110,26 @@ export async function getUsedSiteSourceContents({
     const data: GetUsedSiteSourceContentsResponse = await response.json();
     return data;
 }
+
+/*
+* Add a user imput to the Vector DB
+*/
+export async function addUsedSourcesTextInput({
+    site_id,
+    title,
+    content
+}: {
+    site_id: number
+    title: string
+    content: string
+}) {
+    const response = await flaskFetch(`/api/site/${site_id}/used-sources/text-input`, {
+        method: 'POST',
+        body: JSON.stringify({
+            title,
+            content
+        }),
+    });
+    const data = await response.json();
+    return data;
+}

@@ -1,7 +1,7 @@
 "use server"
 
-import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema } from "../schemas/tasks";
-import { deleteAddedSource, unuseSiteSource, useSiteSource } from "../sites";
+import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema } from "../schemas/tasks";
+import { deleteAddedSource, unuseSiteSource, useSiteSource, addUsedSourcesTextInput } from "../sites";
 import { getTasksStatus, startTestTask, setNotifiedTask, clearTasks } from "../tasks";
 import { action } from "@/lib/actions";
 
@@ -32,4 +32,8 @@ export const unuseSiteSourceAction = action(UnuseSiteSourceActionSchema, async (
 
 export const deleteAddedSourceAction = action(DeleteAddedSourceActionSchema, async ({ site_id, added_source_id }) => {
   return await deleteAddedSource(site_id, added_source_id)
+})
+
+export const addUsedSourcesTextInputAction = action(AddUsedSourcesTextInputActionSchema, async ({ site_id, title, content }) => {
+  return await addUsedSourcesTextInput({ site_id, title, content })
 })

@@ -10,8 +10,10 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { PageProps } from '@/.next/types/app/layout';
+import { PageProps } from '@/types';
 import { getSiteId } from '@/lib/api';
+import { Textarea } from '@/components/ui/textarea';
+import { TextInput } from './TextInput';
 
 const title = "Add Sources";
 const description = "Add Sources for the bot";
@@ -33,7 +35,7 @@ export default async function page({ params }: PageProps) {
         <Tabs defaultValue="website">
           <TabsList>
             <TabsTrigger value="website"><div><Globe className="inline" /> Website</div></TabsTrigger>
-            <TabsTrigger value="upload"><div><FileUp className="inline" /> File Upload</div></TabsTrigger>
+            {/* <TabsTrigger value="upload"><div><FileUp className="inline" /> File Upload</div></TabsTrigger> */}
             <TabsTrigger value="input"><div><Text className="inline" /> Text Input</div></TabsTrigger>
           </TabsList>
 
@@ -78,9 +80,13 @@ export default async function page({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="upload" className="space-y-4">
-            test
+          <TabsContent value="input" className="space-y-4">
+            <TextInput siteId={siteId} />
           </TabsContent>
+
+          {/* <TabsContent value="upload" className="space-y-4">
+            test
+          </TabsContent> */}
         </Tabs>
 
       </div>

@@ -69,13 +69,13 @@ export const UsedSourcesCellAction: React.FC<CellActionProps> = ({ siteId, data 
           <DropdownMenuItem onClick={() => setUnuseSourceOpen(true)}>
             <MinusCircle className="mr-2 h-4 w-4" /> Unuse
           </DropdownMenuItem>
-          {isValidURL(data.source) && (
-            <DropdownMenuItem asChild >
-              <Link href={`/dashboard/${siteId}/sources/${encodeURIComponent(data.source)}`} >
-                <AlignHorizontalJustifyCenter className="mr-2 h-4 w-4" /> Contents
-              </Link>
-            </DropdownMenuItem>
-          )}
+
+          <DropdownMenuItem asChild >
+            <Link href={`/dashboard/${siteId}/sources/${encodeURIComponent(data.source)}`} >
+              <AlignHorizontalJustifyCenter className="mr-2 h-4 w-4" /> Contents
+            </Link>
+          </DropdownMenuItem>
+
         </DropdownMenuContent>
       </DropdownMenu>
     </>

@@ -1,21 +1,18 @@
 from collections import defaultdict
 from app.utils.decorators import login_required
 from flask import Blueprint, jsonify, request, session
-from app import db, chroma_client
+from app import db
 from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity
 )
 from app.models.models import ScannerMainUrl, ScannerFoundUrls, Site, User
 from app.utils.validation import validate_form
-from app.validation.site import ScannerScanForm, CreateForm, CrawlerCrawlForm
+from app.validation.site import ScannerScanForm, CreateForm, CrawlerCrawlForm, AddTextInputForm
 from app.utils.celery import scan_url, crawl_urls
 from sqlalchemy.orm import aliased
-from langchain_community.vectorstores import Chroma
-from app.utils.embeddings import embeddings
-from app.utils.vector import get_search_results
+from app.utils.vector import get_collection, get_combined_source_chunks, generate_upsertables, get_search_results
 import json
-from app.utils.vector import get_combined_source_chunks
 
 site = Blueprint('site', __name__)
 
@@ -142,7 +139,7 @@ def get_scanned_urls(site_id):
 
     # Get entries which are already in used sources (vector db)
     collection_name = f"{site_name}_{user_id}"
-    query_results = chroma_client.get_collection(collection_name).get(where={"source": {"$in": all_urls}}, include=["metadatas"]) 
+    query_results = get_collection(collection_name).get(where={"source": {"$in": all_urls}}, include=["metadatas"]) 
     used_sources = {metadata['source'] for metadata in query_results['metadatas']} if query_results['metadatas'] else set()
     
     # Update the response with is_used status
@@ -178,7 +175,7 @@ def delete_added_source(site_id, added_source_id):
     
     # Check if the added source URL is in used_sources (vector db)
     collection_name = f"{site.name}_{user_id}"
-    query_results = chroma_client.get_collection(collection_name).get(where={"source": added_source.url}, include=["metadatas"]) 
+    query_results = get_collection(collection_name).get(where={"source": added_source.url}, include=["metadatas"]) 
     if query_results['ids']:
         return jsonify({"error": "You may not delete an added source that is in use. Please make sure to unuse it first."}), 400
     
@@ -285,7 +282,7 @@ def sites_get_unused_sources(site_id):
         return jsonify({"error": "Site not found"}), 404
     
     collection_name = f"{site.name}_{user_id}"
-    collection = chroma_client.get_collection(collection_name)
+    collection = get_collection(collection_name)
     
     # Retrieve all documents with their metadatas
     sources = collection.get(include=["metadatas", "documents"])
@@ -349,6 +346,35 @@ def sites_add_source(site_id, added_source_id):
 
     return jsonify({"task_id": task.id}), 202
 
+@site.route('/<int:site_id>/used-sources/text-input', methods=['POST'])
+@jwt_required()
+def sites_use_text_input(site_id):
+    """This endpoint is used to add raw input text to the vector db"""
+    user_id = get_jwt_identity()
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        return jsonify({"error": "Site not found"}), 404
+    
+    json = request.get_json(silent=True)
+    form = validate_form(AddTextInputForm, json)
+    
+    title = form.title.data
+    content = form.content.data
+    
+    collection_name = f"{site.name}_{site.user_id}"
+    collection = get_collection(collection_name)
+    
+    upsertables = generate_upsertables(source=title, source_type="input", content=content)
+    for upsertable in upsertables:
+        collection.upsert(
+            documents=[upsertable['document']],
+            metadatas=[upsertable['metadata']],
+            ids=[upsertable['id']]
+        )
+        
+    return jsonify({"message": "Text input added successfully"}), 200
+    
+
 # Endpoint to get used source
 @site.route('/<int:site_id>/used-sources/<path:source>', methods=['GET'])
 @jwt_required()
@@ -359,7 +385,7 @@ def sites_get_used_source(site_id, source):
         return jsonify({"error": "Site not found"}), 404
 
     collection_name = f"{site.name}_{site.user_id}"
-    collection = chroma_client.get_collection(collection_name)
+    collection = get_collection(collection_name)
     
     combined_documents = get_combined_source_chunks(collection, source)
     if combined_documents is None:
@@ -376,7 +402,7 @@ def sites_unuse_source(site_id, source):
         return jsonify({"error": "Site not found"}), 404
 
     collection_name = f"{site.name}_{site.user_id}"
-    collection = chroma_client.get_collection(collection_name)
+    collection = get_collection(collection_name)
     
     query_results = collection.get(where={"source": source}, include=["metadatas"])
     if not query_results['ids']:
@@ -400,7 +426,7 @@ def crawler_count(site_id):
         return jsonify({"error": "Site not found"}), 404
     
     collection_name = f"{site.name}_{site.user_id}"
-    collection = chroma_client.get_collection(collection_name)
+    collection = get_collection(collection_name)
     
     return jsonify({"count": collection.count()}), 200
 

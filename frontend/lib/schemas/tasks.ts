@@ -22,3 +22,9 @@ export const UnuseSiteSourceActionSchema = z.object({
   site_id: z.number(),
   source: z.string(),
 })
+
+export const AddUsedSourcesTextInputActionSchema = z.object({
+  site_id: z.number(),
+  title: z.string(),
+  content: z.string(),
+})

@@ -40,6 +40,23 @@ class Site(SerializableMixin, db.Model):
     
     def __repr__(self):
         return f"Site('{self.name}', '{self.user_id}')"
+    
+class SiteIgnoredVectorDbSource(SerializableMixin, db.Model):
+    """
+    The ignored vector db sources for the site.
+    This is only used for raw input text because
+    These, unlike urls, go directly into the vector db.
+    So ignoring them will not "Remove" them but instead make them not included in any queries.
+    """
+
+    __tablename__ = 'site_ignored_vector_db_source'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False)
+    source = db.Column(db.String(80), unique=True, nullable=False)
+    
+    def __repr__(self):
+        return f'<SiteIgnoredVectorDbSource {self.source}>'
 
 class ScannerMainUrl(SerializableMixin, db.Model):
     """The main url that will be scanned"""

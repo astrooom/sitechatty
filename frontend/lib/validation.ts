@@ -1,0 +1,1 @@
+export const LONGFORM_TEXT_MAX = 65_535;
