@@ -1,6 +1,6 @@
 from app import db 
 from sqlalchemy.orm import class_mapper
-from app.utils.classify_url import classify_url
+from app.utils.classify_url import classify_url, is_valid_url
 class SerializableMixin:
     """Mixin for serializing objects to JSON"""
     def to_dict(self):
@@ -34,51 +34,43 @@ class Site(SerializableMixin, db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now(), onupdate=db.func.now())
     name = db.Column(db.String(80), unique=True, nullable=False) # This is also the name of the collection.
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    favicon_url = db.Column(db.Text, nullable=True)
     
-    # Define the relationship with ScannerMainUrl
-    scanner_main_urls = db.relationship('ScannerMainUrl', backref='site', cascade="all, delete-orphan")
+    # Define the relationship with SiteAddedSource
+    added_sources = db.relationship('SiteAddedSource', backref='site', cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"Site('{self.name}', '{self.user_id}')"
-
-class ScannerMainUrl(SerializableMixin, db.Model):
-    """The main url that will be scanned"""
     
-    __tablename__ = 'scanner_main_url'
+class SiteAddedSource(SerializableMixin, db.Model):
+    """The added sources of the site"""
+    
+    __tablename__ = 'site_source'
     
     id = db.Column(db.Integer, primary_key=True)
     site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False)
-    url = db.Column(db.Text, unique=True, nullable=False)
-    favicon_url = db.Column(db.Text, nullable=True)
-    max_urls_allowed = db.Column(db.Integer, nullable=False, default=100) # Can be changed for "premium" users or something similar.
+    type = db.Column(db.String(80), nullable=False) # web, upload or input
+    content_type = db.Column(db.String(80), nullable=True) # Only used for URLs
+    source = db.Column(db.Text, unique=True, nullable=False) # Can be a URL, a name of a file or a user-input.
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now(), onupdate=db.func.now())
     
-    # Define the relationship with ScannerFoundUrls
-    found_urls = db.relationship('ScannerFoundUrls', backref='main_url', cascade="all, delete-orphan")
+    def __init__(self, site_id, type, source, created_at, updated_at):
+        self.site_id = site_id
+        self.type = type
+        self.content_type = self.classify_and_set_type_if_url()
+        self.source = source
+        self.created_at = created_at
+        self.updated_at = updated_at
+        
+    def classify_and_set_type_if_url(self):
+        """
+        Classifies the source (if its a URL) and sets its 'content_type' attribute.
+        """
+        if is_valid_url(self.source):
+            self.content_type = classify_url(self.source)
+            return self.content_type
+        return None
     
     def __repr__(self):
-        return f'<ScannerMainUrl {self.url}>'
-    
-class ScannerFoundUrls(SerializableMixin, db.Model):
-    """The found urls from the main url during scan"""
-    
-    __tablename__ = 'scanner_found_urls'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    main_id = db.Column(db.Integer, db.ForeignKey('scanner_main_url.id'), nullable=False)
-    url = db.Column(db.Text, unique=True, nullable=False)
-    type = db.Column(db.String(80), nullable=True)
-    
-    def __init__(self, url, main_id):
-        self.url = url
-        self.main_id = main_id
-        self.type = self.classify_and_set_type()
-    
-    def classify_and_set_type(self):
-        """
-        Classifies the URL and sets the 'type' attribute.
-        """
-        self.type = classify_url(self.url)
-        return self.type
-    
-    def __repr__(self):
-        return f'<ScannerFoundUrls {self.url}>'
+        return f"SiteSource('{self.site_id}', '{self.source}')"
