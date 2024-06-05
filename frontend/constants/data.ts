@@ -114,32 +114,50 @@ export type Employee = {
 export const navItems: NavItem[] = [
   {
     title: 'Dashboard',
-    href: '/dashboard',
+    href: '/dashboard/[site_id]',
     icon: 'dashboard',
     label: 'Dashboard'
   },
   {
+    title: 'Sources',
+    href: '/dashboard/[site_id]/sources',
+    icon: 'sources',
+    label: 'sources'
+  },
+  {
     title: 'User',
-    href: '/dashboard/user',
+    href: '/dashboard/[site_id]/user',
     icon: 'user',
     label: 'user'
   },
   {
     title: 'Employee',
-    href: '/dashboard/employee',
+    href: '/dashboard/[site_id]/employee',
     icon: 'employee',
     label: 'employee'
   },
   {
     title: 'Profile',
-    href: '/dashboard/profile',
+    href: '/dashboard/[site_id]/profile',
     icon: 'profile',
     label: 'profile'
   },
   {
     title: 'Kanban',
-    href: '/dashboard/kanban',
+    href: '/dashboard/[site_id]/kanban',
     icon: 'kanban',
     label: 'kanban'
   }
 ];
+
+export const getDashboardNavigation = (siteId: number) => {
+  // Replace the '[site_id]' placeholder with the actual site ID. If item has a href.
+  const siteIdStr = siteId.toString();
+  return navItems.map((item) => {
+    if (item.href) {
+      return { ...item, href: item.href.replace('[site_id]', siteIdStr) };
+    }
+    return item;
+  });
+
+};

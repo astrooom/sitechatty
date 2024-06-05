@@ -11,6 +11,8 @@ from chromadb.config import Settings
 from flask_jwt_extended import (
     JWTManager
 )
+from flask_socketio import SocketIO
+import redis
 # from alembic import command
 # from alembic.config import Config as AlembicConfig
 # import os
@@ -28,6 +30,10 @@ sess = Session()
 jwt = JWTManager()
 
 celery = None
+
+redis_client = redis.from_url(Config.MISC_REDIS_URL) # misc redis client for everything thats not cache or directly celery-related.
+
+socketio = SocketIO()
 
 chroma_client = chromadb.HttpClient(host="chromadb", port=8000, settings=Settings(allow_reset=False, anonymized_telemetry=False))
 
@@ -50,6 +56,7 @@ def create_app():
     sess.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    socketio = SocketIO(app)
     celery = make_celery(app)
 
     with app.app_context():
@@ -57,10 +64,12 @@ def create_app():
         from .routes.views import main
         from .routes.site import site
         from .routes.auth import auth
+        from .routes.task import task
         
         app.register_blueprint(main, url_prefix='/api')
         app.register_blueprint(site, url_prefix='/api/site')
         app.register_blueprint(auth, url_prefix='/api/auth')
+        app.register_blueprint(task, url_prefix='/api/task')
 
         # Create database tables for our data models
         db.create_all()

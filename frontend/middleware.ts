@@ -30,7 +30,10 @@ async function middlewareSettings(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production'
     })
 
-    accessToken = request.cookies.get('access_token')
+    // Update access token directly to avoid below logic to trigger redirect.
+    accessToken = {
+      name: 'access_token', value: newAuthToken.value
+    };
   }
 
   /*

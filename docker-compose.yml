@@ -41,7 +41,7 @@ services:
       - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
       - REDIS_URL=redis://cache:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    command: /bin/sh -c "env && gunicorn --reload --keyfile=${SSL_KEYFILE} --certfile=${SSL_CERTFILE} --worker-class=gthread --workers 16 --threads=4 --timeout 30 -b 0.0.0.0:${FLASK_PORT:-3001} run:app"
+    command: /bin/sh -c "env && gunicorn --reload --keyfile=${SSL_KEYFILE} --certfile=${SSL_CERTFILE} --worker-class=eventlet --workers=1 --worker-connections=1000 --timeout 30 -b 0.0.0.0:${FLASK_PORT:-3001} run:app"
     depends_on:
       - cache
       - postgres
@@ -163,7 +163,8 @@ services:
       LOGINS: administrator
       LOGIN_PASSWORD_administrator: ${DBGATE_LOGIN_PASSWORD:-iVVstTvRS8CDHRS3}
 
-      CONNECTIONS: postgres,chromadb
+      CONNECTIONS: postgres,chromadb,cache
+      
       LABEL_postgres: Postgres
       URL_postgres: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
       ENGINE_postgres: postgres@dbgate-plugin-postgres
@@ -171,6 +172,11 @@ services:
       LABEL_chromadb: SQLite
       FILE_chromadb: /chroma/chroma/chroma.sqlite3
       ENGINE_chromadb: sqlite@dbgate-plugin-sqlite
+
+      LABEL_cache: Redis
+      URL_cache: redis://cache:6379
+      ENGINE_cache: redis@dbgate-plugin-redis
+
     profiles:
       - dev
       - production

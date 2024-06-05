@@ -1,5 +1,4 @@
 import { Icons } from '@/components/icons';
-
 export interface NavItem {
   title: string;
   href?: string;
@@ -30,3 +29,17 @@ export interface FooterItem {
 export type MainNavItem = NavItemWithOptionalChildren;
 
 export type SidebarNavItem = NavItemWithChildren;
+
+export type RouteParams = { [key: string]: string | string[] | undefined };
+
+export type RouteContext = { params?: RouteParams };
+
+export type PageProps = {
+  params?: RouteParams;
+  searchParams?: RouteParams;
+};
+
+export type LayoutProps = {
+  children: React.ReactNode;
+  params?: RouteParams;
+};

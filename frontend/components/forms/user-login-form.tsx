@@ -11,8 +11,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
-// import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
@@ -62,11 +60,10 @@ export default function UserLoginForm() {
       toast({
         variant: 'default',
         title: 'Logged in!',
+        description: 'Redirecting to Dashboard...'
       });
-
     }
     setLoading(false)
-
     push('/dashboard');
   };
 

@@ -28,6 +28,7 @@ import {
   User,
   User2Icon,
   UserX2Icon,
+  Database,
   X
 } from 'lucide-react';
 
@@ -45,6 +46,7 @@ export const Icons = {
   chevronRight: ChevronRight,
   trash: Trash,
   employee: UserX2Icon,
+  sources: Database,
   post: FileText,
   page: File,
   media: Image,

@@ -14,6 +14,8 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from './ui/tooltip';
+import { DashboardNavLogoutButton } from './dashboardNavLogoutButton';
+
 
 interface DashboardNavProps {
   items: NavItem[];
@@ -36,6 +38,9 @@ export function DashboardNav({
   return (
     <nav className="grid items-start gap-2">
       <TooltipProvider>
+
+        {/* <DashboardNavSiteSelector /> */}
+
         {items.map((item, index) => {
           const Icon = Icons[item.icon || 'arrowRight'];
           return (
@@ -74,6 +79,9 @@ export function DashboardNav({
             )
           );
         })}
+
+        <DashboardNavLogoutButton isMobileNav={isMobileNav} />
+
       </TooltipProvider>
     </nav>
   );

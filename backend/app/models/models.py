@@ -1,6 +1,6 @@
 from app import db 
 from sqlalchemy.orm import class_mapper
-
+from app.utils.classify_url import classify_url
 class SerializableMixin:
     """Mixin for serializing objects to JSON"""
     def to_dict(self):
@@ -66,6 +66,19 @@ class ScannerFoundUrls(SerializableMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     main_id = db.Column(db.Integer, db.ForeignKey('scanner_main_url.id'), nullable=False)
     url = db.Column(db.Text, unique=True, nullable=False)
+    type = db.Column(db.String(80), nullable=True)
+    
+    def __init__(self, url, main_id):
+        self.url = url
+        self.main_id = main_id
+        self.type = self.classify_and_set_type()
+    
+    def classify_and_set_type(self):
+        """
+        Classifies the URL and sets the 'type' attribute.
+        """
+        self.type = classify_url(self.url)
+        return self.type
     
     def __repr__(self):
         return f'<ScannerFoundUrls {self.url}>'

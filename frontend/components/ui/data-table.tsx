@@ -2,8 +2,12 @@
 
 import {
   ColumnDef,
+  OnChangeFn,
+  SortDirection,
+  SortingState,
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table';
@@ -19,37 +23,73 @@ import {
 import { Input } from './input';
 import { Button } from './button';
 import { ScrollArea, ScrollBar } from './scroll-area';
+import { useState } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchKey: string;
+  searchKeyName?: string;
+
+  /**
+   * The default sorting state for the `DataTable`.
+   */
+  defaultSortingState?: SortingState;
+  /**
+ * Callback fired when the sorting column changes.
+ * @param SortingColumnChangeDetails
+ */
+  onSortingChange?(value: SortingState): void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  searchKey
+  searchKey,
+  searchKeyName,
+  defaultSortingState = [],
+  onSortingChange,
 }: DataTableProps<TData, TValue>) {
+
+  const [sorting, setSorting] = useState<SortingState>(defaultSortingState);
+  const _handleSortingChange: OnChangeFn<SortingState> = (newSorting) => {
+    const { sorting: currentSortingState } = table.getState();
+    const updatedSortingState = typeof newSorting === "function" ? newSorting(currentSortingState) : newSorting;
+    onSortingChange?.(updatedSortingState);
+    setSorting(updatedSortingState);
+  };
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel()
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+
+    onSortingChange: _handleSortingChange,
+
+    state: {
+      sorting
+    }
   });
 
   /* this can be used to get the selectedrows 
   console.log("value", table.getFilteredSelectedRowModel()); */
 
+  const getSortIcon = (direction: SortDirection | false) => {
+    return !direction ? <ArrowUpDown className="h-3 w-3" /> : direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
+
   return (
     <>
       <Input
-        placeholder={`Search ${searchKey}...`}
+        placeholder={`Search ${searchKeyName ? searchKeyName : searchKey}...`}
         value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
         onChange={(event) =>
           table.getColumn(searchKey)?.setFilterValue(event.target.value)
         }
-        className="w-full md:max-w-sm"
+        className="w-full md:max-w-sm mb-2"
       />
       <ScrollArea className="h-[calc(80vh-220px)] rounded-md border">
         <Table className="relative">
@@ -58,13 +98,16 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
+                    <TableHead key={header.id} onClick={() => header.column.toggleSorting(header.column.getIsSorted() === "asc")}>
+                      <div className="flex items-center gap-x-1">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
                             header.column.columnDef.header,
                             header.getContext()
                           )}
+                        {["actions", "select"].includes(header.id) ? null : getSortIcon(header.column.getIsSorted())}
+                      </div>
                     </TableHead>
                   );
                 })}
@@ -102,7 +145,9 @@ export function DataTable<TData, TValue>({
         </Table>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
-      <div className="flex items-center justify-end space-x-2 py-4">
+
+
+      {/* <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} of{' '}
           {table.getFilteredRowModel().rows.length} row(s) selected.
@@ -125,7 +170,9 @@ export function DataTable<TData, TValue>({
             Next
           </Button>
         </div>
-      </div>
+      </div> */}
+
+
     </>
   );
 }

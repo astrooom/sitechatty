@@ -4,8 +4,10 @@ import { MobileSidebar } from './mobile-sidebar';
 import { UserNav } from './user-nav';
 import Link from 'next/link';
 import HeaderIcon from './headerIcon';
+import type { CeleryTask } from '@/lib/tasks';
+import { TaskList } from './taskList';
 
-export default function DashboardHeader() {
+export default function DashboardHeader({ siteId, tasks }: { siteId: number, tasks: CeleryTask[] }) {
   return (
     <div className="supports-backdrop-blur:bg-background/60 fixed left-0 right-0 top-0 z-20 border-b bg-background/95 backdrop-blur">
       <nav className="flex h-14 items-center justify-between px-4">
@@ -18,11 +20,12 @@ export default function DashboardHeader() {
           </Link>
         </div>
         <div className={cn('block lg:!hidden')}>
-          <MobileSidebar />
+          <MobileSidebar siteId={siteId} />
         </div>
 
         <div className="flex items-center gap-2">
           {/* <UserNav /> */}
+          <TaskList tasks={tasks} />
           <ThemeToggle />
         </div>
       </nav>

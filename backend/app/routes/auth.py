@@ -50,8 +50,8 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'error': 'Invalid email or password'}), 401
     
-    access_token = create_access_token(identity=user.username, expires_delta=timedelta(seconds=ACCESS_TOKEN_RETENTION_SECONDS))
-    refresh_token = create_refresh_token(identity=user.username, expires_delta=timedelta(seconds=REFRESH_TOKEN_RETENTION_SECONDS))
+    access_token = create_access_token(identity=user.id, expires_delta=timedelta(seconds=ACCESS_TOKEN_RETENTION_SECONDS))
+    refresh_token = create_refresh_token(identity=user.id, expires_delta=timedelta(seconds=REFRESH_TOKEN_RETENTION_SECONDS))
     
     return (
         jsonify(
@@ -74,8 +74,8 @@ def login():
 @auth.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
-    username = get_jwt_identity()
-    access_token = create_access_token(identity=username)
+    user_id = get_jwt_identity()
+    access_token = create_access_token(identity=user_id, expires_delta=timedelta(seconds=ACCESS_TOKEN_RETENTION_SECONDS))
     return jsonify({'data': 
       {'access_token': {
         'value': access_token, 
@@ -85,8 +85,8 @@ def refresh():
 @auth.route('/me', methods=['GET'])
 @jwt_required()
 def me():
-    username = get_jwt_identity()
-    user = User.query.filter_by(username=username).first()
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id=user_id).first()
     return jsonify({'username': user.username, 'email': user.email}), 200
 
 @auth.route("/update", methods=["PATCH"])
