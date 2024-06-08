@@ -77,7 +77,7 @@ export const AddedSourcesCellAction: React.FC<CellActionProps> = ({ data }) => {
       refresh()
     } finally {
       setLoading(false);
-      setUseOpen(false);
+      setDeleteOpen(false);
     }
   };
 

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import HeaderIcon from './headerIcon';
 import type { CeleryTask } from '@/lib/tasks';
 import { TaskList } from './taskList';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export default function DashboardHeader({ siteId, tasks }: { siteId: number, tasks: CeleryTask[] }) {
   return (
@@ -25,7 +26,9 @@ export default function DashboardHeader({ siteId, tasks }: { siteId: number, tas
 
         <div className="flex items-center gap-2">
           {/* <UserNav /> */}
-          <TaskList tasks={tasks} />
+          <TooltipProvider>
+            <TaskList tasks={tasks} />
+          </TooltipProvider>
           <ThemeToggle />
         </div>
       </nav>

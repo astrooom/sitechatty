@@ -13,6 +13,11 @@ export const UseSiteSourceActionSchema = z.object({
   added_source_id: z.number(),
 })
 
+export const addSiteAddedWebpageActionSchema = z.object({
+  site_id: z.number(),
+  url: z.string(),
+})
+
 export const DeleteAddedSourceActionSchema = z.object({
   site_id: z.number(),
   added_source_id: z.number(),
@@ -27,4 +32,17 @@ export const AddUsedSourcesTextInputActionSchema = z.object({
   site_id: z.number(),
   title: z.string(),
   content: z.string(),
+})
+
+export const EditUsedSourcesTextInputSchema = z.object({
+  site_id: z.number(),
+  current_title: z.string(),
+  title: z.string(),
+  content: z.string(),
+})
+
+export const AddSiteScanActionSchema = z.object({
+  site_id: z.number(),
+  url: z.string(),
+  max_depth: z.number().optional(),
 })

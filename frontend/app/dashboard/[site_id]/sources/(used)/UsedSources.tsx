@@ -1,6 +1,7 @@
 import { getSitesUsedSources } from '@/lib';
 import { UsedSourcesTable } from './UsedSourcesTable';
 import { ignoreCache } from '@/lib/api';
+import { TooltipProvider } from '@/components/ui/tooltip';
 export async function UsedSources({ siteId }: { siteId: number }) {
   const usedSources = await getSitesUsedSources(siteId, ignoreCache);
   return (
@@ -8,9 +9,9 @@ export async function UsedSources({ siteId }: { siteId: number }) {
       <h2 className="text-xl font-bold tracking-tight">Used Sources</h2>
       <p className="text-sm text-muted-foreground">These sources are currently used by the bot.</p>
 
-      <UsedSourcesTable siteId={siteId} usedSources={usedSources} />
+      <TooltipProvider>
+        <UsedSourcesTable siteId={siteId} usedSources={usedSources} />
+      </TooltipProvider>
     </div>
   );
 }
-
-

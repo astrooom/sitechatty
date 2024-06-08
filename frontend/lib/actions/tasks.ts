@@ -1,7 +1,7 @@
 "use server"
 
-import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema } from "../schemas/tasks";
-import { deleteAddedSource, unuseSiteSource, useSiteSource, addUsedSourcesTextInput } from "../sites";
+import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema, EditUsedSourcesTextInputSchema, addSiteAddedWebpageActionSchema, AddSiteScanActionSchema } from "../schemas/tasks";
+import { deleteAddedSource, unuseSiteSource, useSiteSource, addUsedSourcesTextInput, editUsedSourcesTextInput, addSiteAddedWebpage, addSiteScan } from "../sites";
 import { getTasksStatus, startTestTask, setNotifiedTask, clearTasks } from "../tasks";
 import { action } from "@/lib/actions";
 
@@ -30,10 +30,22 @@ export const unuseSiteSourceAction = action(UnuseSiteSourceActionSchema, async (
   return await unuseSiteSource({ site_id, source })
 })
 
+export const addSiteAddedWebpageAction = action(addSiteAddedWebpageActionSchema, async ({ site_id, url }) => {
+  return await addSiteAddedWebpage({ site_id, url })
+})
+
+export const addSiteScanAction = action(AddSiteScanActionSchema, async ({ site_id, url, max_depth }) => {
+  return await addSiteScan({ site_id, url, max_depth })
+})
+
 export const deleteAddedSourceAction = action(DeleteAddedSourceActionSchema, async ({ site_id, added_source_id }) => {
   return await deleteAddedSource(site_id, added_source_id)
 })
 
 export const addUsedSourcesTextInputAction = action(AddUsedSourcesTextInputActionSchema, async ({ site_id, title, content }) => {
   return await addUsedSourcesTextInput({ site_id, title, content })
+})
+
+export const editUsedSourcesTextInputAction = action(EditUsedSourcesTextInputSchema, async ({ site_id, current_title, title, content }) => {
+  return await editUsedSourcesTextInput({ site_id, current_title, title, content })
 })

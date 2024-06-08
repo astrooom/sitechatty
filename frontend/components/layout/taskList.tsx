@@ -16,11 +16,29 @@ import { CeleryTask, CompletedTask, FailedTask } from '@/lib/tasks';
 import { CheckCircle2, LayoutList, Loader2, XCircle } from 'lucide-react';
 import { useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { useRouter } from 'next/navigation';
-import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 import { TooltipContent } from '@radix-ui/react-tooltip';
 export function TaskList({ tasks }: { tasks: CeleryTask[] }) {
-  const { refresh } = useRouter();
+
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const ongoingTasks = searchParams.get('ongoingTasks') === 'true';
+
+  // Remove ongoing tasks query param
+  const closeOngoingTasks = () => {
+    const withoutOngoingTasks = new URLSearchParams(searchParams);
+    withoutOngoingTasks.delete('ongoingTasks');
+    replace(`${pathname}?${withoutOngoingTasks.toString()}`);
+  }
+
+  const openOngoingTasks = () => {
+    const withOngoingTasks = new URLSearchParams(searchParams);
+    withOngoingTasks.set('ongoingTasks', 'true');
+    replace(`${pathname}?${withOngoingTasks.toString()}`);
+  }
+
+  const { refresh, replace } = useRouter();
 
   const { toast } = useToast();
 
@@ -53,6 +71,7 @@ export function TaskList({ tasks }: { tasks: CeleryTask[] }) {
   const fetchTaskStatuses = async () => {
     try {
       const polledTasks = await getTasksStatusAction(pollableTasks.map(t => t.task_id));
+
       if (!polledTasks.data) {
         return
       }
@@ -65,6 +84,12 @@ export function TaskList({ tasks }: { tasks: CeleryTask[] }) {
         if (task.status === 'completed') {
           notifyTask(task);
         }
+
+        // if (task.status === "started") {
+        //   if (task.do_periodical_refresh) {
+        //     refresh()
+        //   }
+        // }
       }
 
     } catch (error) {
@@ -110,7 +135,7 @@ export function TaskList({ tasks }: { tasks: CeleryTask[] }) {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={ongoingTasks} onOpenChange={ongoingTasks ? closeOngoingTasks : openOngoingTasks}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon">
           {pollableTasks.length > 0 ? <Loader2 className="h-[1.2rem] w-[1.2rem] animate-spin" /> : <LayoutList className="h-[1.2rem] w-[1.2rem]" />}
@@ -133,7 +158,7 @@ export function TaskList({ tasks }: { tasks: CeleryTask[] }) {
                 {getIcon(task.status)}
               </DropdownMenuShortcut>
 
-              <TooltipProvider>
+              {["completed", "failed"].includes(task.status) && (
                 <Tooltip key={task.task_id}>
                   <TooltipTrigger asChild>
                     <XCircle color='red' className="ml-2 h-[1.1rem] w-[1.1rem] cursor-pointer" onClick={(e) => {
@@ -148,7 +173,7 @@ export function TaskList({ tasks }: { tasks: CeleryTask[] }) {
                     Clear
                   </TooltipContent>
                 </Tooltip>
-              </TooltipProvider>
+              )}
 
             </DropdownMenuItem>
           ))}

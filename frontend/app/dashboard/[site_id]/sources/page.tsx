@@ -4,14 +4,13 @@ import { buttonVariants } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib';
-import { FileUp, Globe, Plus, Text } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { AddedSources } from './(added)/AddedSources';
 import { UsedSources } from './(used)/UsedSources';
 import { PageProps } from '@/types';
 import { getSiteId } from '@/lib/api';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const title = "Sources";
 const description = "View sources for the bot";
@@ -39,11 +38,11 @@ export default async function page({ params }: PageProps) {
 
         <div className="flex sm:flex-row flex-col sm:gap-y-0 gap-y-2 sm:gap-x-8 justify-between">
 
-          <div className="w-6/12">
+          <div className="sm:w-6/12">
             <AddedSources />
           </div>
 
-          <div className="w-6/12">
+          <div className="sm:w-6/12">
             <UsedSources siteId={siteId} />
           </div>
 

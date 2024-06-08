@@ -29,13 +29,19 @@ export const columns: ColumnDef<ScannedUrl>[] = [
   },
   {
     id: 'source',
-    accessorKey: 'url',
+    accessorKey: 'source',
     header: 'SOURCE'
   },
+  // {
+  //   id: 'source_type',
+  //   accessorKey: 'source_type',
+  //   header: 'TYPE',
+  // },
   {
     id: 'type',
     accessorKey: 'type',
-    header: 'TYPE',
+    header: 'CATEGORY',
+    // cell: ({ row }) => <>{row.original.type || 'n/a'}</>
   },
   {
     id: 'is_used',

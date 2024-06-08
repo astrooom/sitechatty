@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import * as z from 'zod';
 import { Textarea } from "@/components/ui/textarea";
 import { LONGFORM_TEXT_MAX } from "@/lib/validation";
-import { addUsedSourcesTextInputAction } from "@/lib/actions/tasks";
+import { editUsedSourcesTextInputAction } from "@/lib/actions/tasks";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
 
@@ -27,23 +27,28 @@ const formSchema = z.object({
 
 type TextInputFormValue = z.infer<typeof formSchema>;
 
-export function TextInput({ siteId }: { siteId: number }) {
+export function ModifyTextInput({ siteId, currentTitle, currentContents }: { siteId: number, currentTitle: string, currentContents: string }) {
 
   const { toast } = useToast();
 
-  const { refresh } = useRouter()
+  const { refresh, push } = useRouter()
 
   const [loading, setLoading] = useState(false);
 
   const form = useForm<TextInputFormValue>({
-    resolver: zodResolver(formSchema)
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: currentTitle,
+      content: currentContents
+    }
   });
 
   const onSubmit = async (data: TextInputFormValue) => {
     setLoading(true)
 
-    const response = await addUsedSourcesTextInputAction({
+    const response = await editUsedSourcesTextInputAction({
       site_id: siteId,
+      current_title: currentTitle,
       title: data.title,
       content: data.content
     })
@@ -56,12 +61,18 @@ export function TextInput({ siteId }: { siteId: number }) {
       });
     } else {
       toast({
-        title: 'Source added',
-        description: 'The source was added successfully.',
+        title: 'Source edited',
+        description: 'The source was edited successfully.',
         variant: 'success'
       });
 
-      refresh()
+      // If changing title, push to sources
+      if (data.title !== currentTitle) {
+        push(`/dashboard/${siteId}/sources`)
+      } else {
+        refresh()
+      }
+
     }
     setLoading(false)
   };
@@ -71,8 +82,11 @@ export function TextInput({ siteId }: { siteId: number }) {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-y-2 w-full"
+          className="flex flex-col gap-y-4 w-full"
         >
+          <Button disabled={loading} className="ml-auto" type="submit">
+            Edit Source
+          </Button>
 
           <FormField
             control={form.control}
@@ -111,9 +125,6 @@ export function TextInput({ siteId }: { siteId: number }) {
               </FormItem>
             )}
           />
-          <Button disabled={loading} className="w-full" type="submit">
-            Add Source
-          </Button>
         </form>
       </Form>
     </>

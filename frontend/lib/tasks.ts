@@ -8,6 +8,7 @@ type CeleryTaskBase = {
   name: string;
   status: TaskStatus;
   start_time: string;
+  do_periodical_refresh: boolean;
 }
 
 export type StartedTask = CeleryTaskBase & {

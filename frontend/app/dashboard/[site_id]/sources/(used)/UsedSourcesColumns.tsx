@@ -4,6 +4,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import { UsedSourcesCellAction } from './UsedSourcesCellAction';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { UsedSource } from '@/lib';
+import { Globe, Text } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const getColumns = (siteId: number): ColumnDef<UsedSource>[] => [
   {
@@ -29,6 +31,30 @@ export const getColumns = (siteId: number): ColumnDef<UsedSource>[] => [
     id: 'source',
     accessorKey: 'source',
     header: 'SOURCE',
+  },
+  {
+    id: 'source_type',
+    accessorKey: 'source_type',
+    header: 'TYPE',
+    cell: ({ row }) => {
+      const sourceType = row.getValue("source_type");
+      return (
+        <Tooltip>
+          <TooltipContent align="center" side="right">
+            {sourceType === "input" ? "Text Input" : "Webpage"}
+          </TooltipContent>
+          <TooltipTrigger>
+            {sourceType === "input" ? (
+              <Text className="inline h-6 w-6" />
+            ) : sourceType === "webpage" ? (
+              <Globe className="inline h-6 w-6" />
+            ) : (
+              null
+            )}
+          </TooltipTrigger>
+        </Tooltip>
+      );
+    }
   },
   {
     id: 'updated_at',

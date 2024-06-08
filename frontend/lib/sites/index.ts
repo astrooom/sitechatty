@@ -1,5 +1,7 @@
 import { flaskFetch } from "@/lib"
 
+type SourceType = "webpage" | "input"
+
 export type Site = {
     id: number
     name: string
@@ -19,11 +21,13 @@ export async function getSites() {
 
 export type ScannedUrl = {
     id: number
-    url: string
-    type: string
-    is_main: boolean
+    source: string
+    source_type: SourceType
+    type: string | null
     site_id: number
     is_used: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 type GetSitesAddedSourcesResponse = ScannedUrl[];
@@ -33,6 +37,44 @@ export async function getSitesAddedSources(site_id: number) {
     const data: GetSitesAddedSourcesResponse = await response.json();
     return data;
 }
+
+export async function addSiteAddedWebpage({
+    site_id,
+    url
+}: {
+    site_id: number
+    url: string
+}) {
+    const response = await flaskFetch(`/api/site/${site_id}/added-sources/webpage`, {
+        method: 'POST',
+        body: JSON.stringify({
+            url
+        })
+    });
+    const data = await response.json();
+    return data;
+}
+
+export async function addSiteScan({
+    site_id,
+    url,
+    max_depth = 2
+}: {
+    site_id: number
+    url: string
+    max_depth?: number
+}) {
+    const response = await flaskFetch(`/api/site/${site_id}/added-sources/scan`, {
+        method: 'POST',
+        body: JSON.stringify({
+            url,
+            max_depth
+        })
+    });
+    const data = await response.json();
+    return data;
+}
+
 
 export async function deleteAddedSource(site_id: number, added_source_id: number) {
     const response = await flaskFetch(`/api/site/${site_id}/added-sources/${added_source_id}`, { method: 'DELETE' });
@@ -47,6 +89,7 @@ export async function deleteAddedSource(site_id: number, added_source_id: number
 export type UsedSource = {
     id: string;
     page_date: number;
+    source_type: SourceType
     source: string;
     title: string;
     type: string;
@@ -73,7 +116,7 @@ export async function useSiteSource({
     site_id: number
     added_source_id: number
 }) {
-    const response = await flaskFetch(`/api/site/${site_id}/added-sources/${added_source_id}`, { method: 'POST' });
+    const response = await flaskFetch(`/api/site/${site_id}/used-sources/${added_source_id}`, { method: 'POST' });
     const data = await response.json();
     return data;
 }
@@ -98,6 +141,7 @@ export async function unuseSiteSource({
 */
 type GetUsedSiteSourceContentsResponse = {
     contents: string
+    source_type: SourceType
 }
 export async function getUsedSiteSourceContents({
     site_id,
@@ -133,3 +177,29 @@ export async function addUsedSourcesTextInput({
     const data = await response.json();
     return data;
 }
+
+/*
+* Edit a user imput to the Vector DB
+*/
+export async function editUsedSourcesTextInput({
+    site_id,
+    current_title,
+    title,
+    content
+}: {
+    site_id: number
+    current_title: string
+    title: string
+    content: string
+}) {
+    const response = await flaskFetch(`/api/site/${site_id}/used-sources/text-input`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+            current_title,
+            title,
+            content
+        }),
+    });
+    const data = await response.json();
+    return data;
+}   
