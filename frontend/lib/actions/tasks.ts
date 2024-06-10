@@ -1,7 +1,7 @@
 "use server"
 
-import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema, EditUsedSourcesTextInputSchema, addSiteAddedWebpageActionSchema, AddSiteScanActionSchema } from "../schemas/tasks";
-import { deleteAddedSource, unuseSiteSource, useSiteSource, addUsedSourcesTextInput, editUsedSourcesTextInput, addSiteAddedWebpage, addSiteScan } from "../sites";
+import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema, EditUsedSourcesTextInputSchema, addSiteAddedWebpageActionSchema, AddSiteScanActionSchema, GetPlaygroundWsDetailsActionSchema } from "../schemas/tasks";
+import { deleteAddedSource, unuseSiteSource, useSiteSource, addUsedSourcesTextInput, editUsedSourcesTextInput, addSiteAddedWebpage, addSiteScan, getPlaygroundWsDetails } from "../sites";
 import { getTasksStatus, startTestTask, setNotifiedTask, clearTasks } from "../tasks";
 import { action } from "@/lib/actions";
 
@@ -48,4 +48,8 @@ export const addUsedSourcesTextInputAction = action(AddUsedSourcesTextInputActio
 
 export const editUsedSourcesTextInputAction = action(EditUsedSourcesTextInputSchema, async ({ site_id, current_title, title, content }) => {
   return await editUsedSourcesTextInput({ site_id, current_title, title, content })
+})
+
+export const getPlaygroundWsDetailsAction = action(GetPlaygroundWsDetailsActionSchema, async ({ site_id, type }) => {
+  return await getPlaygroundWsDetails({ site_id, type })
 })

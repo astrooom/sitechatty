@@ -1,18 +1,19 @@
-from collections import defaultdict
 from app.utils.decorators import login_required
 from flask import Blueprint, jsonify, request, session
-from app import db
+from app import db, socketio
+from flask_socketio import emit, join_room, disconnect
 from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity
 )
-from app.models.models import ScannerMainUrl, ScannerFoundUrls, Site, User
+from app.models.models import SiteAddedSources, Site, User
 from app.utils.validation import validate_form
-from app.validation.site import ScannerScanForm, CreateForm, CrawlerCrawlForm, AddTextInputForm
-from app.utils.celery import scan_url, crawl_urls
-from sqlalchemy.orm import aliased
+from app.validation.site import AddScanForm, CreateForm, CrawlerCrawlForm, AddTextInputForm, UpdateTextInputForm, AddAddedWebpagesForm
+from app.utils.celery import crawl_urls, scan_url
 from app.utils.vector import get_collection, get_combined_source_chunks, generate_upsertables, get_search_results
-import json
+from datetime import datetime, timezone
+from app.config import Config
+from app.utils.socket import generate_socket_token, verify_socket_token, store_socket_id_data, get_socket_id_data
 
 site = Blueprint('site', __name__)
 
@@ -73,81 +74,64 @@ def delete(site_id):
 @jwt_required()
 def get_scanned_urls(site_id):
     """
-    This endpoint is used to get all main URLs and scanned URLs from a site.
+    This endpoint is used to get all added sources for a site.
+    """
+    user_id = get_jwt_identity()
+
+    # Check that the site belongs to the user
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        return jsonify({"error": "Site not found"}), 404
+
+    # Get all added sources for the site
+    results = SiteAddedSources.query.filter_by(site_id=site_id).all()
+    response = [result.to_dict() for result in results]
+
+    all_sources = {result['source'] for result in response}
+
+    if all_sources:
+        # Get entries which are already in used sources (vector db)
+        collection_name = f"{site.name}_{user_id}"
+        query_results = get_collection(collection_name).get(where={"source": {"$in": list(all_sources)}}, include=["metadatas"]) 
+        used_sources = {metadata['source'] for metadata in query_results['metadatas']} if query_results['metadatas'] else set()
+    else:
+        used_sources = set()
+
+    # Update the response with is_used status
+    for row in response:
+        row["is_used"] = row["source"] in used_sources
+
+    return jsonify(response), 200
+
+@site.route('/<int:site_id>/added-sources/webpage', methods=['POST'])
+@jwt_required()
+def add_added_source(site_id):
+    """
+    This endpoint is used to add an added source (url) to a site.
     """
     user_id = get_jwt_identity()
     
-    main_url_alias = aliased(ScannerMainUrl)
-
-    # Combined query to check site ownership and get all main URLs and their scanned URLs
-    results = (
-        db.session.query(
-            main_url_alias.id.label('main_id'),
-            main_url_alias.url.label('main_url'),
-            ScannerFoundUrls.id.label('scanned_id'),  # Select the id of ScannerFoundUrls
-            ScannerFoundUrls.url.label('scanned_url'),
-            ScannerFoundUrls.type.label('type'),
-            Site.name.label('site_name')
-        )
-        .outerjoin(ScannerFoundUrls, ScannerFoundUrls.main_id == main_url_alias.id)
-        .join(Site, main_url_alias.site_id == Site.id)
-        .join(User, Site.user_id == User.id)
-        .filter(User.id == user_id, Site.id == site_id)
-        .all()
-    )
+    json = request.get_json(silent=True)
+    combined_data = {**json, "site_id": site_id}
+    form = validate_form(AddAddedWebpagesForm, combined_data)
     
-    if not results:
-        # Check if the site exists to distinguish between no URLs and no site
-        site_exists = (
-            db.session.query(Site.id)
-            .join(User)
-            .filter(User.id == user_id, Site.id == site_id)
-            .first()
-        )
-        if not site_exists:
-            return jsonify({"error": "Site not found"}), 404
-
-    response = []
-    all_urls = []
-    added_main_urls = set()
-    site_name = results[0].site_name if results else ""
-
-    # Collect all URLs and build initial response
-    for row in results:
-        if row.main_id not in added_main_urls:
-            all_urls.append(row.main_url)
-            response.append({
-                "url": row.main_url,
-                "type": None,
-                "is_main": True,
-                "id": row.main_id,
-                "site_id": site_id,
-                "is_used": False
-            })
-            added_main_urls.add(row.main_id)
-
-        if row.scanned_url:
-            all_urls.append(row.scanned_url)
-            response.append({
-                "url": row.scanned_url,
-                "type": row.type,
-                "is_main": False,
-                "id": row.scanned_id,
-                "site_id": site_id,
-                "is_used": False
-            })
-
-    # Get entries which are already in used sources (vector db)
-    collection_name = f"{site_name}_{user_id}"
-    query_results = get_collection(collection_name).get(where={"source": {"$in": all_urls}}, include=["metadatas"]) 
-    used_sources = {metadata['source'] for metadata in query_results['metadatas']} if query_results['metadatas'] else set()
-    
-    # Update the response with is_used status
-    for row in response:
-        if row["url"] in used_sources:
-            row["is_used"] = True
-
-    return jsonify(response), 200
+    # Check that the site belongs to the user
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        return jsonify({"error": "Site not found"}), 404
+        
+    existing_source = SiteAddedSources.query.filter_by(site_id=site_id, source=form.url.data).first()
+    if existing_source:
+        # Update existing to set new updated_at but keep other values the same
+        existing_source.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return jsonify({"added_source_id": existing_source.id}), 200
+    else:
+        added_source = SiteAddedSources(site_id=site_id, source=form.url.data, source_type="webpage")
+        db.session.add(added_source)
+        db.session.commit()
+        
+        return jsonify({"added_source_id": added_source.id}), 200
 
 @site.route('/<int:site_id>/added-sources/<int:added_source_id>', methods=['DELETE'])
 @jwt_required()
@@ -162,20 +146,14 @@ def delete_added_source(site_id, added_source_id):
     if not site:
         return jsonify({"error": "Site not found"}), 404
     
-    # Check that the added source belongs to the site via ScannerMainUrl
-    added_source = (
-        db.session.query(ScannerFoundUrls)
-        .join(ScannerMainUrl, ScannerFoundUrls.main_id == ScannerMainUrl.id)
-        .filter(ScannerFoundUrls.id == added_source_id, ScannerMainUrl.site_id == site_id)
-        .first()
-    )
-    
+    # Check that the added source belongs to the site
+    added_source = SiteAddedSources.query.filter_by(id=added_source_id, site_id=site_id).first()
     if not added_source:
         return jsonify({"error": "Added source not found."}), 404
     
     # Check if the added source URL is in used_sources (vector db)
     collection_name = f"{site.name}_{user_id}"
-    query_results = get_collection(collection_name).get(where={"source": added_source.url}, include=["metadatas"]) 
+    query_results = get_collection(collection_name).get(where={"source": added_source.source}, include=["metadatas"]) 
     if query_results['ids']:
         return jsonify({"error": "You may not delete an added source that is in use. Please make sure to unuse it first."}), 400
     
@@ -185,11 +163,11 @@ def delete_added_source(site_id, added_source_id):
     
     return jsonify({"message": "Added source deleted successfully"}), 200
 
-@site.route('/<int:site_id>/scanner/scan', methods=['POST'])
+@site.route('/<int:site_id>/added-sources/scan', methods=['POST'])
 @jwt_required()
 def scan(site_id):
     """
-    This endpoint is used to recursively scan urls from a website's "main" url and put them in the db.
+    This endpoint is used to recursively scan more urls from a website's "main" url and put them in the db.
     """
     
     user_id = get_jwt_identity()
@@ -199,73 +177,69 @@ def scan(site_id):
     
     if not site:
         return jsonify({"error": "Site not found"}), 404
-        
-    json = request.get_json(silent=True)
-    combined_data = {**json, "site_id": site_id}
     
-    form = validate_form(ScannerScanForm, combined_data)
+    combined_data = {**request.get_json(silent=True), "site_id": site_id}
     
-    base_url = form.base_url.data
-    site_id = form.site_id.data
+    form = validate_form(AddScanForm, combined_data)
+    
+    url = form.url.data # Url is validated to only be a base url.
+    # If url ends with /, remove it
+    if url.endswith('/'):
+        url = url[:-1]
 
     # Remove trailing / from input base url if present
-    if base_url.endswith('/'):
-        base_url = base_url[:-1]
+    if url.endswith('/'):
+        url = url[:-1]
 
-    max_depth = json.get('max_depth', 2)
+    max_depth = form.max_depth.data
 
-    main_url_record = ScannerMainUrl.query.filter_by(
-        url=base_url, site_id=site_id).first()
-    if main_url_record:
-        count = ScannerFoundUrls.query.filter_by(
-            main_id=main_url_record.id).count()
-
-        if count >= main_url_record.max_urls_allowed:
-            return jsonify({"error": f"Reached the maximum limit of {main_url_record.max_urls_allowed} URLs. Stopping crawl."}), 400
+    site_added_sources_count = SiteAddedSources.query.filter_by(site_id=site_id).count()
+    if site_added_sources_count >= site.max_urls_allowed:
+        return jsonify({"error": f"Reached the maximum limit of {site.max_urls_allowed} added sources."}), 400
 
     task = scan_url.apply_async(
-        args=[str(base_url), int(site_id), int(max_depth)], kwargs={"user_id": site.user.id}
+        args=[str(url), int(site_id), int(max_depth)], kwargs={"user_id": site.user.id, "display_name": "Scanning URLs", "do_periodical_refresh": True},
     )
 
     return jsonify({"task_id": task.id}), 202
 
-@site.route('/<int:site_id>/crawler/crawl', methods=['POST'])
-@login_required
-def crawler_pull(site_id):
-    """
-    This endpoint is used to pull the contents of a website's "scanned" urls and put them in a vector DB collection.
-    """
-    user_id = session["user_id"]
+# @site.route('/<int:site_id>/crawler/crawl', methods=['POST'])
+# @login_required
+# def crawler_pull(site_id):
+#     """
+#     This endpoint is used to pull the contents of a website's "scanned" urls and put them in a vector DB collection.
+#     """
+#     user_id = session["user_id"]
     
-    json = request.get_json(silent=True)
-    combined_data = {**json, "site_id": site_id}
+#     json = request.get_json(silent=True)
+#     combined_data = {**json, "site_id": site_id}
     
-    form = validate_form(CrawlerCrawlForm, combined_data)
+#     form = validate_form(CrawlerCrawlForm, combined_data)
     
-    site_id = form.site_id.data
-    urls = form.urls.data # Will be chooseable through the UI.
-    all_urls = form.all_urls.data
-    delete_first = form.delete_first.data
-    do_cleanup = form.do_cleanup.data
+#     site_id = form.site_id.data
+#     urls = form.urls.data # Will be chooseable through the UI.
+#     all_urls = form.all_urls.data
+#     delete_first = form.delete_first.data
+#     do_cleanup = form.do_cleanup.data
     
-    if delete_first:
-        return jsonify({"error": "Disabled for security."}), 400
+#     if delete_first:
+#         return jsonify({"error": "Disabled for security."}), 400
     
-    if do_cleanup and not all_urls:
-        return jsonify({"error": "Must use all_urls if do_cleanup is true"}), 400
+#     if do_cleanup and not all_urls:
+#         return jsonify({"error": "Must use all_urls if do_cleanup is true"}), 400
     
-    if all_urls:
-        # Get all from site -> main urls -> scanned urls
-        # Site -> Main urls -> Scanned urls
-        main_url_alias = aliased(ScannerMainUrl)
-        site_scanned_query = db.session.query(ScannerFoundUrls.url).join(main_url_alias, ScannerFoundUrls.main_id == main_url_alias.id).filter(main_url_alias.site_id == site_id).all()
-        urls = [result[0] for result in site_scanned_query]
+#     if all_urls:
+#         # Get all from site -> main urls -> scanned urls
+#         # Site -> Main urls -> Scanned urls
+#         main_url_alias = aliased(ScannerMainUrl)
+#         site_scanned_query = db.session.query(ScannerFoundUrls.url).join(main_url_alias, ScannerFoundUrls.main_id == main_url_alias.id).filter(main_url_alias.site_id == site_id).all()
+#         urls = [result[0] for result in site_scanned_query]
 
-    task = crawl_urls.apply_async(
-        args=[int(site_id), list(urls), bool(delete_first), bool(do_cleanup)],
-    )
+#     task = crawl_urls.apply_async(
+#         args=[int(site_id), list(urls), bool(delete_first), bool(do_cleanup)],
+#     )
 
-    return jsonify({"task_id": task.id}), 202
+#     return jsonify({"task_id": task.id}), 202
 
 @site.route('/<int:site_id>/used-sources', methods=['GET'])
 @jwt_required()
@@ -290,38 +264,28 @@ def sites_get_unused_sources(site_id):
     if not sources['ids']:
         return jsonify([])
 
-    # Dictionary to hold combined contents by source
-    combined_sources = defaultdict(lambda: {"metadatas": {}, "contents": []})
+    # Dictionary to hold metadata by source
+    combined_sources = {}
 
     # Combine all chunks of each source
     for id_, metadata, document in zip(sources['ids'], sources['metadatas'], sources['documents']):
-        json_content = json.loads(document)
-        chunk_index = json_content['chunk_index']
-        content = json_content['content']
         source = metadata['source']
 
-        # Initialize metadata and combine contents
-        if 'id' not in combined_sources[source]:
-            combined_sources[source].update(metadata)
+        # Initialize metadata
+        if source not in combined_sources:
+            combined_sources[source] = metadata
             combined_sources[source]['id'] = id_
-        
-        combined_sources[source]['contents'].append((chunk_index, content))
-    
-    # Sort contents by chunk_index and join them
-    for source, data in combined_sources.items():
-        data['contents'].sort(key=lambda x: x[0])
-        data['contents'] = "".join([content for _, content in data['contents']])
     
     # Convert combined_sources to a list of dicts
     combined_sources_list = list(combined_sources.values())
     
     return jsonify(combined_sources_list), 200
 
-@site.route('/<int:site_id>/added-sources/<int:added_source_id>', methods=['POST'])
+@site.route('/<int:site_id>/used-sources/<int:added_source_id>', methods=['POST'])
 @jwt_required()
-def sites_add_source(site_id, added_source_id):
+def sites_use_source(site_id, added_source_id):
     """
-    This endpoint is used to add a url (incl. scanning its contents) to the Vector DB.
+    This endpoint is used to add a source (url) (incl. scanning its contents) to the Vector DB from the added-sources
     """
     user_id = get_jwt_identity()
     
@@ -330,15 +294,15 @@ def sites_add_source(site_id, added_source_id):
     if not site:
         return jsonify({"error": "Site not found"}), 404
     
-    # Get the scanned url from the source id
-    scannedUrl = ScannerFoundUrls.query.filter_by(id=added_source_id).first()
-    if not scannedUrl:
+    added_source = SiteAddedSources.query.filter_by(id=added_source_id).first()
+    
+    # Get the added_source from the source id
+    if not added_source:
         return jsonify({"error": "Source not found"}), 404
     
-    urls = [scannedUrl.url]
-    delete_first = False
-    do_cleanup = False
-    
+    urls = [added_source.source]
+    delete_first = False # it's CRITICAL that this is False because it will delete the vector db collection.
+    do_cleanup = False # it's CRITICAL that this is False because it should ONLY be used when doing a full crawl of all urls which are used.
     task = crawl_urls.apply_async(
         args=[int(site_id), list(urls), bool(delete_first), bool(do_cleanup)], 
         kwargs={"user_id": user_id, "display_name": "Adding a source"}
@@ -364,6 +328,11 @@ def sites_use_text_input(site_id):
     collection_name = f"{site.name}_{site.user_id}"
     collection = get_collection(collection_name)
     
+    # Make sure the source doesn't already exist
+    query_results = collection.get(where={"source": title}, include=["metadatas"])
+    if query_results['ids']:
+        return jsonify({"error": "There is already a source with this title."}), 409
+    
     upsertables = generate_upsertables(source=title, source_type="input", content=content)
     for upsertable in upsertables:
         collection.upsert(
@@ -373,7 +342,44 @@ def sites_use_text_input(site_id):
         )
         
     return jsonify({"message": "Text input added successfully"}), 200
+
+@site.route('/<int:site_id>/used-sources/text-input', methods=['PATCH'])
+@jwt_required()
+def sites_update_text_input(site_id):
+    """This endpoint is used to update raw input text in the vector db"""
+    user_id = get_jwt_identity()
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        return jsonify({"error": "Site not found"}), 404
     
+    json = request.get_json(silent=True)
+    form = validate_form(UpdateTextInputForm, json)
+    
+    current_title = form.current_title.data
+    title = form.title.data
+    content = form.content.data
+    
+    collection_name = f"{site.name}_{site.user_id}"
+    collection = get_collection(collection_name)
+    
+    # Make sure the source exists
+    query_results = collection.get(where={"source": current_title}, include=["metadatas"])
+    if not query_results['ids']:
+        return jsonify({"error": "There is no source with this title."}), 404
+    
+    # Delete all the old upsertables
+    collection.delete(ids=query_results['ids'])
+    
+    # Insert new upsertables
+    upsertables = generate_upsertables(source=title, source_type="input", content=content)
+    for upsertable in upsertables:
+        collection.upsert(
+            documents=[upsertable['document']],
+            metadatas=[upsertable['metadata']],
+            ids=[upsertable['id']]
+        )
+        
+    return jsonify({"message": "Text input updated successfully"}), 200
 
 # Endpoint to get used source
 @site.route('/<int:site_id>/used-sources/<path:source>', methods=['GET'])
@@ -387,11 +393,20 @@ def sites_get_used_source(site_id, source):
     collection_name = f"{site.name}_{site.user_id}"
     collection = get_collection(collection_name)
     
-    combined_documents = get_combined_source_chunks(collection, source)
+    query_results = collection.get(where={"source": source}, include=["metadatas", "documents"])
+    
+    combined_documents = get_combined_source_chunks(query_results)
     if combined_documents is None:
         return jsonify({'contents': ''}), 404
     
-    return jsonify({'contents': combined_documents}), 200
+    # Safely retrieve the source_type
+    source_type = None
+    if query_results.get('metadatas'):
+        metadata_first_item = query_results.get('metadatas')[0]
+        if metadata_first_item:
+            source_type = metadata_first_item.get('source_type', None)
+    
+    return jsonify({'contents': combined_documents, 'source_type': source_type}), 200
 
 @site.route('/<int:site_id>/used-sources/<path:source>', methods=['DELETE'])
 @jwt_required()
@@ -453,23 +468,125 @@ def similarity_search(site_id):
     
     return jsonify({"search_results": search_results}), 200
 
-@site.route('/<int:site_id>/chat', methods=['POST'])
-@login_required
-def chat(site_id):
-    user_id = session["user_id"]
+# @site.route('/<int:site_id>/chat', methods=['POST'])
+# @login_required
+# def chat(site_id):
+#     user_id = session["user_id"]
     
-    json = request.get_json(silent=True)
-    combined_data = {**json, "site_id": site_id}
+#     json = request.get_json(silent=True)
+#     combined_data = {**json, "site_id": site_id}
     
-    # Check that the site belongs to the user
+#     # Check that the site belongs to the user
+#     site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+#     if not site:
+#         return jsonify({"error": "Site not found"}), 404
+    
+#     # Find some way to store chatr history and retrieve it for the same chat window if reloading for example.
+    
+#     query = combined_data['query']
+#     search_results = get_search_results(query, site)
+    
+    # Add chat history to db.
+
+# @socketio.on('join')
+# @jwt_required()
+# def handle_join(data):
+#     room = data['room']
+#     join_room(room)
+#     emit('status', {'msg': f'{get_jwt_identity()} has entered the room.'}, room=room)
+    
+# @socketio.on('message')
+# def handle_message(message):
+#     send(message)
+
+@site.route('/<int:site_id>/playground/ws-details/<string:type>', methods=['GET'])
+@jwt_required()
+def site_ws_details(site_id, type):
+    user_id = get_jwt_identity()
     site = Site.query.filter_by(id=site_id, user_id=user_id).first()
     if not site:
         return jsonify({"error": "Site not found"}), 404
     
-    # Find some way to store chatr history and retrieve it for the same chat window if reloading for example.
-    
-    query = combined_data['query']
-    search_results = get_search_results(query, site)
-    
-    # Add chat history to db.
+    # Type can be either 'search' or 'chat'
+    if type == 'search':
+        type = 'playground:search'
+    elif type == 'chat':
+        type = 'playground:chat'
+    else:
+        return jsonify({"error": "Invalid type"}), 400
 
+    # Generate a WS token and store in the redis db. Make valid for 15 mins.
+    # When its about to expire, an event is sent out to the socket client to reconnect.
+    ws_token = generate_socket_token(type, user_id, site_id)
+
+    return jsonify({"ws_url": Config.PUBLIC_URL, "ws_token": ws_token}), 200
+
+
+# @socketio.on('connect', namespace='/search')
+# def handle_connect():
+#     try:
+#         token_type, user_id, site_id = verify_socket_token(type, token, site_id)
+#     except Exception as e:
+#         emit('error', {'msg': 'Could not verify socket token.'})
+#         disconnect()
+#         return
+
+#     prefix, user_id, token_site_id = token_data.decode().split(':')
+#     if prefix != 'playground:search':
+#         emit('error', {'msg': 'Unauthorized access'})
+#         disconnect()
+#         return
+
+#     # Store the socket ID and associated user_id and site_id in Redis
+#     socket_id = request.sid
+#     store_socket_id(socket_id, user_id, token_site_id)
+
+#     join_room(token)
+#     emit('status', {'msg': 'You have entered the room.'}, room=token)
+
+@socketio.on('join', namespace='/search')
+def handle_join(data):
+    
+    type = 'playground:search'
+    
+    token = data.get('token')
+    site_id = data.get('site_id')
+    
+    try:
+        token_type, user_id, site_id = verify_socket_token(type, token, site_id)
+    except Exception as e:
+        emit('error', {'msg': 'Could not verify socket token.'})
+        disconnect()
+        return
+    
+    room = data.get('room')
+    if not room:
+        emit('error', {'msg': 'No room provided'})
+        disconnect()
+        return
+    
+    # Store the socket ID and associated user_id and site_id in Redis
+    socket_id = request.sid
+    store_socket_id_data(socket_id, user_id, site_id)
+    
+    join_room(room)
+    emit('status', {'msg': f'{get_jwt_identity()} has entered the room.'}, room=room)
+    
+@socketio.on('search', namespace='/search')
+def handle_search(data):
+    
+    try:
+        user_id, site_id = get_socket_id_data(request.sid)
+    except Exception as e:
+        emit('error', {'msg': 'Could not verify socket id.'})
+        disconnect()
+        return
+
+    query = data['query']
+    site = Site.query.filter_by(id=site_id, user_id=user_id).first()
+    if not site:
+        emit('error', {'msg': 'Site not found'})
+        return
+
+    search_results = get_search_results(query, site)
+    emit('message', {'results': search_results, 'user': user_id})

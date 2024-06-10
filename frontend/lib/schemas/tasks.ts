@@ -46,3 +46,8 @@ export const AddSiteScanActionSchema = z.object({
   url: z.string(),
   max_depth: z.number().optional(),
 })
+
+export const GetPlaygroundWsDetailsActionSchema = z.object({
+  site_id: z.number(),
+  type: z.enum(['chat', 'sources']),
+})

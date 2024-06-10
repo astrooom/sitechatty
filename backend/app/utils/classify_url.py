@@ -49,7 +49,7 @@ def classify_url(url):
     for type, pattern in PATTERNS.items():
         if pattern.search(url):
             return type
-    return None
+    return ""
 
 
 def is_valid_url(url: str) -> bool:

@@ -202,4 +202,22 @@ export async function editUsedSourcesTextInput({
     });
     const data = await response.json();
     return data;
-}   
+}
+
+type PlaygroundType = "chat" | "sources";
+
+type GetPlaygroundWsDetailsResponse = {
+    ws_url: string
+    ws_token: string
+}
+export async function getPlaygroundWsDetails({
+    site_id,
+    type
+}: {
+    site_id: number
+    type: PlaygroundType
+}) {
+    const response = await flaskFetch(`/api/site/${site_id}/playground/ws-details/${type}`, { method: 'GET' });
+    const data: GetPlaygroundWsDetailsResponse = await response.json();
+    return data;
+}

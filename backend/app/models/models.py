@@ -34,68 +34,57 @@ class Site(SerializableMixin, db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now(), onupdate=db.func.now())
     name = db.Column(db.String(80), unique=True, nullable=False) # This is also the name of the collection.
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    favicon_url = db.Column(db.Text, nullable=True)
+    max_urls_allowed = db.Column(db.Integer, nullable=False, default=100) # Can be changed for "premium" users or something similar.
     
-    # Define the relationship with ScannerMainUrl
-    scanner_main_urls = db.relationship('ScannerMainUrl', backref='site', cascade="all, delete-orphan")
+    added_sources = db.relationship('SiteAddedSources', backref='site', cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"Site('{self.name}', '{self.user_id}')"
     
-class SiteIgnoredVectorDbSource(SerializableMixin, db.Model):
-    """
-    The ignored vector db sources for the site.
-    This is only used for raw input text because
-    These, unlike urls, go directly into the vector db.
-    So ignoring them will not "Remove" them but instead make them not included in any queries.
-    """
-
-    __tablename__ = 'site_ignored_vector_db_source'
+class SiteAddedSources(SerializableMixin, db.Model):
+    """The added sources for the site"""
+    
+    __tablename__ = 'site_added_sources'
     
     id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now(), onupdate=db.func.now())
     site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False)
     source = db.Column(db.String(80), unique=True, nullable=False)
-    
-    def __repr__(self):
-        return f'<SiteIgnoredVectorDbSource {self.source}>'
-
-class ScannerMainUrl(SerializableMixin, db.Model):
-    """The main url that will be scanned"""
-    
-    __tablename__ = 'scanner_main_url'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False)
-    url = db.Column(db.Text, unique=True, nullable=False)
-    favicon_url = db.Column(db.Text, nullable=True)
-    max_urls_allowed = db.Column(db.Integer, nullable=False, default=100) # Can be changed for "premium" users or something similar.
-    
-    # Define the relationship with ScannerFoundUrls
-    found_urls = db.relationship('ScannerFoundUrls', backref='main_url', cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f'<ScannerMainUrl {self.url}>'
-    
-class ScannerFoundUrls(SerializableMixin, db.Model):
-    """The found urls from the main url during scan"""
-    
-    __tablename__ = 'scanner_found_urls'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    main_id = db.Column(db.Integer, db.ForeignKey('scanner_main_url.id'), nullable=False)
-    url = db.Column(db.Text, unique=True, nullable=False)
+    source_type = db.Column(db.String(80), nullable=False)
     type = db.Column(db.String(80), nullable=True)
     
-    def __init__(self, url, main_id):
-        self.url = url
-        self.main_id = main_id
-        self.type = self.classify_and_set_type()
-    
+    def __init__(self, site_id, source, source_type):
+        self.site_id = site_id
+        self.source = source
+        self.source_type = source_type # The type of the source (i.e "input" or "webpage")
+        self.type = self.classify_and_set_type() # Only valid for webpages. Guesses a category based on the URL path.
+        
     def classify_and_set_type(self):
         """
         Classifies the URL and sets the 'type' attribute.
         """
-        self.type = classify_url(self.url)
+        self.type = classify_url(self.source)
         return self.type
     
     def __repr__(self):
-        return f'<ScannerFoundUrls {self.url}>'
+        return f'<SiteAddedSources {self.source}>'
+    
+# class SiteIgnoredVectorDbSource(SerializableMixin, db.Model):
+#     """
+#     The ignored vector db sources for the site.
+#     This is only used for raw input text because
+#     These, unlike urls, go directly into the vector db.
+#     So ignoring them will not "Remove" them but instead make them not included in any queries.
+#     """
+
+#     __tablename__ = 'site_ignored_vector_db_source'
+    
+#     id = db.Column(db.Integer, primary_key=True)
+#     site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False)
+#     source = db.Column(db.String(80), unique=True, nullable=False)
+    
+#     def __repr__(self):
+#         return f'<SiteIgnoredVectorDbSource {self.source}>'
+    

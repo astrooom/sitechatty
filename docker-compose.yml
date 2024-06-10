@@ -41,6 +41,7 @@ services:
       - DB_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
       - REDIS_URL=redis://cache:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PUBLIC_URL=${FLASK_PUBLIC_URL} # Websocket connection attempts sends back this to the client so that it can establish the connection to the socketio server.
     command: /bin/sh -c "env && gunicorn --reload --keyfile=${SSL_KEYFILE} --certfile=${SSL_CERTFILE} --worker-class=eventlet --workers=1 --worker-connections=1000 --timeout 30 -b 0.0.0.0:${FLASK_PORT:-3001} run:app"
     depends_on:
       - cache

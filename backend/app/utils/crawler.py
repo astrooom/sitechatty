@@ -1,15 +1,11 @@
-import hashlib
-import re
 from typing import List
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 import asyncio
-from datetime import datetime, timezone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import trafilatura
 from app.utils.date import strdate_to_intdate
 import json
-from app.utils.classify_url import classify_url
 from app.utils.vector import generate_upsertables
 
 class Crawler:

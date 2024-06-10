@@ -56,7 +56,7 @@ def create_app():
     sess.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    socketio = SocketIO(app)
+    socketio.init_app(app, cors_allowed_origins="*")
     celery = make_celery(app)
 
     with app.app_context():

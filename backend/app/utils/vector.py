@@ -1,3 +1,4 @@
+from typing import Literal
 from app import chroma_client 
 from langchain_community.vectorstores import Chroma
 from app.utils.embeddings import embeddings
@@ -7,31 +8,27 @@ from datetime import datetime, timezone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from app.utils.classify_url import classify_url
 
-
 def get_collection(collection_name: str, create_if_not_exists: bool = False):
   if create_if_not_exists:
     return chroma_client.get_or_create_collection(collection_name, embedding_function=embeddings)
   else:
     return chroma_client.get_collection(collection_name, embedding_function=embeddings)
-
+  
+def get_langchain_collection(collection_name: str):
+  return Chroma(collection_name=collection_name, embedding_function=embeddings, client=chroma_client)
 
 def get_search_results(query, site):
-    langchain_chroma = Chroma(
-        client=chroma_client,
-        collection_name=f"{site.name}_{site.user_id}",
-        embedding_function=embeddings,
-    )
+    langchain_chroma = get_langchain_collection(f"{site.name}_{site.user_id}")
 
     search_results = langchain_chroma.similarity_search(query)
     combined_search_results = "\n".join([p.page_content for p in search_results])
     return combined_search_results
 
 
-def get_combined_source_chunks(collection, source):
+def get_combined_source_chunks(query_results):
     """
     Grab the contents of a source (combining all chunks)
     """
-    query_results = collection.get(where={"source": source}, include=["metadatas", "documents"])
     if not query_results['ids']:
         return None
 
@@ -59,12 +56,21 @@ def chunk_text(text: str):
   )
   return text_splitter.split_text(text)
 
-def generate_upsertables(source: str, source_type: str, content: str, page_date = "", display_title = ""):
+def generate_upsertables(source: str, source_type: Literal['input', 'webpage'], content: str, page_date: int = "", display_title: str = ""):
 
   """
   Generate upsertables for the vector db.
   This ensures that there can only be one document per source
+  Regardles of chunks
   """
+  
+  # if page_date is not an empty string, check that its a valid date integer
+  if page_date:
+    try:
+      datetime.fromtimestamp(int(page_date))
+    except Exception as e:
+      print(f"Error parsing page date {page_date}: {e}")
+      raise Exception("page_date must be a valid date or datetime integer or an empty string.")
   
   updated_at = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
   metadata = {

@@ -1,10 +1,7 @@
 "use client"
 
-
-import { Button } from '@/components/ui/button';
 import { Globe, Text } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
 import { TextInput } from './TextInput';
 import { Modal } from '@/components/ui/modal';
 import { useRouter } from 'next/navigation';
