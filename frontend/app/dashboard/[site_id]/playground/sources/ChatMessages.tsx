@@ -1,8 +1,14 @@
 import { Input } from '@/components/ui/input'
 import { SendHorizontal } from 'lucide-react'
-import { ChatMessage } from './ChatMessage'
 
-export const ChatMessages = ({ messages, className }: { messages: ChatMessage[], className?: string }) => {
+import { ChatMessage } from './ChatMessage'
+import { usePlaygroundSourcesContext } from './usePlaygroundSourcesContext'
+import { PlaygroundSourcesQueryInput } from './PlaygroundSourcesQueryInput'
+
+export const ChatMessages = ({ className }: { className?: string }) => {
+
+  const { messages } = usePlaygroundSourcesContext();
+
   return (
     <div className={className}>
       <div className="flex-grow h-full flex flex-col">
@@ -115,12 +121,7 @@ export const ChatMessages = ({ messages, className }: { messages: ChatMessage[],
         </div>
         <div className="h-15 rounded-md rounded-tr-none rounded-tl-none">
 
-          <div className="search-chat flex flex-grow">
-            <Input className="p-6" type="text" placeholder="Type your message ..." />
-            <div className="mx-2 flex items-center">
-              <SendHorizontal className="w-5 h-5 cursor-pointer" />
-            </div>
-          </div>
+          <PlaygroundSourcesQueryInput />
 
         </div>
       </div>

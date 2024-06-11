@@ -128,6 +128,18 @@ export const navItems: NavItem[] = [
     href: '/dashboard/[site_id]/playground',
     icon: 'playground',
     label: 'playground',
+    subItems: [
+      {
+        title: 'Chat',
+        href: '/dashboard/[site_id]/playground/chat',
+        label: 'chat'
+      },
+      {
+        title: 'Sources',
+        href: '/dashboard/[site_id]/playground/sources',
+        label: 'Sources'
+      }
+    ]
   },
   {
     title: 'User',
@@ -155,14 +167,19 @@ export const navItems: NavItem[] = [
   }
 ];
 
-export const getDashboardNavigation = (siteId: number) => {
-  // Replace the '[site_id]' placeholder with the actual site ID. If item has a href.
-  const siteIdStr = siteId.toString();
-  return navItems.map((item) => {
-    if (item.href) {
-      return { ...item, href: item.href.replace('[site_id]', siteIdStr) };
-    }
-    return item;
-  });
 
+export const getDashboardNavigation = (siteId: number) => {
+  const replaceSiteId = (item: NavItem): NavItem => {
+    const siteIdStr = siteId.toString();
+    let newItem = { ...item };
+    if (item.href) {
+      newItem.href = item.href.replace('[site_id]', siteIdStr);
+    }
+    if (item.subItems) {
+      newItem.subItems = item.subItems.map(replaceSiteId);
+    }
+    return newItem;
+  };
+
+  return navItems.map(replaceSiteId);
 };

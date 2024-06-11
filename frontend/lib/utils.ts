@@ -54,3 +54,9 @@ function toErrorWithMessage(maybeError: unknown): ErrorWithMessage {
     return new Error(String(maybeError));
   }
 }
+
+export function stopDefaultAction(e: React.SyntheticEvent) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.nativeEvent.stopImmediatePropagation();
+}
