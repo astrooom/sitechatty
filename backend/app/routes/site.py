@@ -6,13 +6,13 @@ from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity
 )
+from app.config import Config
 from app.models.models import SiteAddedSources, Site, User
 from app.utils.validation import validate_form
 from app.validation.site import AddScanForm, CreateForm, CrawlerCrawlForm, AddTextInputForm, UpdateTextInputForm, AddAddedWebpagesForm
 from app.utils.celery import crawl_urls, scan_url
 from app.utils.vector import get_collection, get_combined_source_chunks, generate_upsertables, get_search_results
 from datetime import datetime, timezone
-from app.config import Config
 from app.utils.socket import generate_socket_token, verify_socket_token, store_socket_id_data, get_socket_id_data
 
 site = Blueprint('site', __name__)
@@ -468,37 +468,6 @@ def similarity_search(site_id):
     
     return jsonify({"search_results": search_results}), 200
 
-# @site.route('/<int:site_id>/chat', methods=['POST'])
-# @login_required
-# def chat(site_id):
-#     user_id = session["user_id"]
-    
-#     json = request.get_json(silent=True)
-#     combined_data = {**json, "site_id": site_id}
-    
-#     # Check that the site belongs to the user
-#     site = Site.query.filter_by(id=site_id, user_id=user_id).first()
-#     if not site:
-#         return jsonify({"error": "Site not found"}), 404
-    
-#     # Find some way to store chatr history and retrieve it for the same chat window if reloading for example.
-    
-#     query = combined_data['query']
-#     search_results = get_search_results(query, site)
-    
-    # Add chat history to db.
-
-# @socketio.on('join')
-# @jwt_required()
-# def handle_join(data):
-#     room = data['room']
-#     join_room(room)
-#     emit('status', {'msg': f'{get_jwt_identity()} has entered the room.'}, room=room)
-    
-# @socketio.on('message')
-# def handle_message(message):
-#     send(message)
-
 @site.route('/<int:site_id>/playground/ws-details/<string:type>', methods=['GET'])
 @jwt_required()
 def site_ws_details(site_id, type):
@@ -507,86 +476,76 @@ def site_ws_details(site_id, type):
     if not site:
         return jsonify({"error": "Site not found"}), 404
     
-    # Type can be either 'search' or 'chat'
-    if type == 'search':
-        type = 'playground:search'
-    elif type == 'chat':
-        type = 'playground:chat'
-    else:
+    if type not in ['query', 'sources']:
         return jsonify({"error": "Invalid type"}), 400
 
     # Generate a WS token and store in the redis db. Make valid for 15 mins.
     # When its about to expire, an event is sent out to the socket client to reconnect.
     ws_token = generate_socket_token(type, user_id, site_id)
 
-    return jsonify({"ws_url": Config.PUBLIC_URL, "ws_token": ws_token}), 200
+    return jsonify({"ws_url": Config.PUBLIC_URL + f"/{type}", "ws_token": ws_token}), 200
 
-
-# @socketio.on('connect', namespace='/search')
-# def handle_connect():
-#     try:
-#         token_type, user_id, site_id = verify_socket_token(type, token, site_id)
-#     except Exception as e:
-#         emit('error', {'msg': 'Could not verify socket token.'})
-#         disconnect()
-#         return
-
-#     prefix, user_id, token_site_id = token_data.decode().split(':')
-#     if prefix != 'playground:search':
-#         emit('error', {'msg': 'Unauthorized access'})
-#         disconnect()
-#         return
-
-#     # Store the socket ID and associated user_id and site_id in Redis
-#     socket_id = request.sid
-#     store_socket_id(socket_id, user_id, token_site_id)
-
-#     join_room(token)
-#     emit('status', {'msg': 'You have entered the room.'}, room=token)
-
-@socketio.on('join', namespace='/search')
+@socketio.on('join', namespace='/sources')
 def handle_join(data):
     
-    type = 'playground:search'
+    type = 'sources'
     
     token = data.get('token')
     site_id = data.get('site_id')
-    
+        
     try:
-        token_type, user_id, site_id = verify_socket_token(type, token, site_id)
+        _token_type, user_id, site_id = verify_socket_token(type, token, site_id)
     except Exception as e:
         emit('error', {'msg': 'Could not verify socket token.'})
         disconnect()
         return
     
-    room = data.get('room')
-    if not room:
-        emit('error', {'msg': 'No room provided'})
-        disconnect()
-        return
+    room = f"{type}_{user_id}_{site_id}"
     
     # Store the socket ID and associated user_id and site_id in Redis
     socket_id = request.sid
-    store_socket_id_data(socket_id, user_id, site_id)
+    store_socket_id_data(socket_id, user_id, site_id, room)
     
     join_room(room)
-    emit('status', {'msg': f'{get_jwt_identity()} has entered the room.'}, room=room)
+    emit('status', {'msg': f'{user_id} has entered the room.'}, room=room)
     
-@socketio.on('search', namespace='/search')
+# Receive ping event and send back time before expiration if close to expiry
+@socketio.on('ping', namespace='/sources')
+def handle_ping():
+    try:
+        user_id, site_id, room, remaining_ttl = get_socket_id_data(request.sid)
+    except Exception as e:
+        emit('error', {'msg': 'Could not verify socket id.'})
+        disconnect()
+        return
+    
+    # If the socket is about to expire, send back "expiring" event
+    if remaining_ttl < 120:
+        emit('expiring', {'remaining_seconds': remaining_ttl}, room=room)
+        return
+    
+@socketio.on('search', namespace='/sources')
 def handle_search(data):
     
+    print(f"[handle_search] -> Received {data}")
+    
     try:
-        user_id, site_id = get_socket_id_data(request.sid)
+        user_id, site_id, room, _remaining_ttl = get_socket_id_data(request.sid)
     except Exception as e:
         emit('error', {'msg': 'Could not verify socket id.'})
         disconnect()
         return
 
-    query = data['query']
+    query_input = data.get('query')
     site = Site.query.filter_by(id=site_id, user_id=user_id).first()
     if not site:
         emit('error', {'msg': 'Site not found'})
         return
 
-    search_results = get_search_results(query, site)
-    emit('message', {'results': search_results, 'user': user_id})
+    search_results = get_search_results(query_input, site)
+    print(f"[handle_search] -> Search results: {search_results}")
+    
+    emit('message', {
+        'content': search_results,
+        'sender': "Search Bot",
+        'datetime': datetime.now(timezone.utc).isoformat()}, room=room)
