@@ -1,5 +1,7 @@
 import { flaskFetch } from "@/lib"
 
+import { cache } from "react";
+
 type SourceType = "webpage" | "input"
 
 export type Site = {
@@ -7,17 +9,31 @@ export type Site = {
   name: string
   created_at: string
   updated_at: string
+  favicon_url?: string | null
 }
 
 type GetSitesResponse = {
   sites: Site[]
 }
-export async function getSites() {
+export async function getSitesUncached() {
   const response = await flaskFetch('/api/site', { method: 'GET' });
   const data: GetSitesResponse = await response.json();
   return data;
 }
 
+export const getSites = cache(getSitesUncached);
+
+export type CreateSiteResponse = Site;
+export async function createSite({ name }: { name: string }) {
+  const response = await flaskFetch('/api/site', {
+    method: 'POST',
+    body: JSON.stringify({
+      name
+    })
+  });
+  const data: CreateSiteResponse = await response.json();
+  return data;
+}
 
 export type ScannedUrl = {
   id: number
@@ -32,8 +48,8 @@ export type ScannedUrl = {
 
 type GetSitesAddedSourcesResponse = ScannedUrl[];
 
-export async function getSitesAddedSources(site_id: number) {
-  const response = await flaskFetch(`/api/site/${site_id}/added-sources`, { method: 'GET' });
+export async function getSitesAddedSources(site_id: number, options?: RequestInit) {
+  const response = await flaskFetch(`/api/site/${site_id}/added-sources`, { method: 'GET', ...options });
   const data: GetSitesAddedSourcesResponse = await response.json();
   return data;
 }

@@ -1,6 +1,9 @@
 from app import db 
 from sqlalchemy.orm import class_mapper
 from app.utils.classify_url import classify_url
+
+USERNAME_LENGTH = 120
+
 class SerializableMixin:
     """Mixin for serializing objects to JSON"""
     def to_dict(self):
@@ -12,8 +15,7 @@ class User(SerializableMixin, db.Model):
     __tablename__ = 'user'
     
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(USERNAME_LENGTH), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now(), onupdate=db.func.now())
@@ -22,7 +24,7 @@ class User(SerializableMixin, db.Model):
     sites = db.relationship('Site', backref='user', cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"User('{self.username}', '{self.email}')"
+        return f"User('{self.email}')"
     
 class Site(SerializableMixin, db.Model):
     """Site model for storing site related details"""
@@ -51,7 +53,7 @@ class SiteAddedSources(SerializableMixin, db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
     updated_at = db.Column(db.DateTime, nullable=False, default=db.func.now(), onupdate=db.func.now())
     site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False)
-    source = db.Column(db.String(80), unique=True, nullable=False)
+    source = db.Column(db.String(2048), unique=True, nullable=False)
     source_type = db.Column(db.String(80), nullable=False)
     type = db.Column(db.String(80), nullable=True)
     
@@ -88,3 +90,13 @@ class SiteAddedSources(SerializableMixin, db.Model):
 #     def __repr__(self):
 #         return f'<SiteIgnoredVectorDbSource {self.source}>'
     
+class ChatMessage(SerializableMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    room = db.Column(db.String(80), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    sender = db.Column(db.String(USERNAME_LENGTH), nullable=False)
+    datetime = db.Column(db.DateTime, default=db.func.now())
+    level = db.Column(db.String(30), nullable=False)
+    
+    def __repr__(self):
+        return f'<ChatMessage {self.content}>'

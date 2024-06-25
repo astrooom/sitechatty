@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 import { cache } from "react";
 import { cookies } from "next/headers";
-export type LoginProps = {
+export type RegisterAndLoginProps = {
   email: string
   password: string
 }
 
-type LoginResponseData = {
+type RegisterAndLoginResponseData = {
   access_token: {
     value: string
     max_age: number
@@ -17,7 +17,7 @@ type LoginResponseData = {
   }
 }
 
-export async function login({ email, password }: LoginProps) {
+export async function login({ email, password }: RegisterAndLoginProps) {
 
   console.log("Logging in...")
 
@@ -32,7 +32,50 @@ export async function login({ email, password }: LoginProps) {
     })
   })
 
-  const { error, data }: { error: string, data: LoginResponseData } = await response.json()
+  const { error, data }: { error: string, data: RegisterAndLoginResponseData } = await response.json()
+
+  if (error) {
+    throw new Error(error)
+  }
+
+  const { access_token, refresh_token } = data
+
+  if (!access_token.value || !refresh_token.value) {
+    throw new Error('Response missing tokens')
+  }
+
+  const headers = new Headers();
+
+  headers.set(
+    'Set-Cookie',
+    `access_token=${access_token.value}; Max-Age=${access_token.max_age}; Path=/; SameSite=strict; HttpOnly;${process.env.NODE_ENV === "production" ? ' Secure' : ''}`);
+
+  headers.append(
+    'Set-Cookie',
+    `refresh_token=${refresh_token.value}; Max-Age=${refresh_token.max_age}; Path=/; SameSite=strict; HttpOnly;${process.env.NODE_ENV === "production" ? ' Secure' : ''}`);
+
+  return NextResponse.json({ "success": true }, {
+    status: response.status,
+    headers
+  })
+}
+
+export async function register({ email, password }: RegisterAndLoginProps) {
+
+  console.log("Registering...")
+
+  const response = await fetch('http://flask:3001' + '/api/auth/register', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password
+    })
+  })
+
+  const { error, data }: { error: string, data: RegisterAndLoginResponseData } = await response.json()
 
   if (error) {
     throw new Error(error)
@@ -61,7 +104,9 @@ export async function login({ email, password }: LoginProps) {
 }
 
 export async function logout(): Promise<NextResponse> {
+
   console.log("Logging out...")
+
   const headers = new Headers();
 
   // Max-Age=0 removes the cookie
@@ -83,14 +128,13 @@ export async function logout(): Promise<NextResponse> {
 }
 
 export type User = {
-  username: string;
   email: string;
 }
 
 export const getCurrentUser = cache(async () => {
   const accessToken = cookies().get('access_token')?.value;
   if (!accessToken) return undefined
-  const response = await fetch('http://flask:3001/api/auth/me', {
+  const response = await fetch('http://flask:3001' + '/api/auth/me', {
     method: 'GET',
     headers: { "Authorization": `Bearer ${accessToken}` }
   })

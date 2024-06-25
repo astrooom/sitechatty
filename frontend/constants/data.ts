@@ -1,4 +1,5 @@
-import { NavItem } from '@/types';
+import type { Site } from '@/lib';
+import type { NavItem } from '@/types';
 
 export type User = {
   id: number;
@@ -110,7 +111,7 @@ export type Employee = {
   profile_picture?: string | null; // Profile picture can be a string (URL) or null (if no picture)
 };
 
-export const navItems: NavItem[] = [
+export const dashboardSiteNavItems: NavItem[] = [
   {
     title: 'Dashboard',
     href: '/dashboard/[site_id]',
@@ -168,7 +169,7 @@ export const navItems: NavItem[] = [
 ];
 
 
-export const getDashboardNavigation = (siteId: number) => {
+export const getDashboardSiteNavigation = (siteId: number) => {
   const replaceSiteId = (item: NavItem): NavItem => {
     const siteIdStr = siteId.toString();
     let newItem = { ...item };
@@ -181,5 +182,31 @@ export const getDashboardNavigation = (siteId: number) => {
     return newItem;
   };
 
-  return navItems.map(replaceSiteId);
+  return dashboardSiteNavItems.map(replaceSiteId);
 };
+
+
+export const getDashboardNavigation = (sites: Site[]) => {
+  // Create one navigation item which then has all sites as sub items
+
+  const siteSubItems: NavItem['subItems'] = [{
+    title: 'Create Site',
+    href: '/dashboard/create-site',
+    label: 'create-site',
+    icon: 'plus'
+  }, ...sites.map((site) => ({
+    title: site.name,
+    href: `/dashboard/${site.id}`,
+    label: site.name,
+  }))]
+
+  const navItems: NavItem[] = [{
+    title: 'Sites',
+    href: '/dashboard',
+    icon: 'site',
+    label: 'Sites',
+    subItems: siteSubItems
+  }];
+
+  return navItems
+}

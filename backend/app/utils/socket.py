@@ -32,8 +32,8 @@ def verify_socket_token(incoming_type: str, token: str, incoming_site_id: int,) 
     
   return token_type, int(token_user_id), int(token_site_id)
     
-def store_socket_id_data(socket_id: str, user_id: int, site_id: int, room: str):
-  redis_client.setex(f"{SOCKET_ID_PREFIX}{socket_id}", SOCKET_TOKEN_EXPIRY_TIME, f"{user_id}:{site_id}:{room}")
+def store_socket_id_data(socket_id: str, room: str):
+  redis_client.setex(f"{SOCKET_ID_PREFIX}{socket_id}", SOCKET_TOKEN_EXPIRY_TIME, room)
   
 def get_socket_id_data(socket_id: str) -> tuple:
     key = f"{SOCKET_ID_PREFIX}{socket_id}"
@@ -46,6 +46,8 @@ def get_socket_id_data(socket_id: str) -> tuple:
     if not token_data:
         raise Exception("Invalid socket id")
     
-    user_id, site_id, room = token_data.decode('utf-8').split(':')
+    # user_id, site_id, room = token_data.decode('utf-8').split(':')
+    room = token_data.decode('utf-8')
     
-    return int(user_id), int(site_id), room, remaining_ttl
+    # return int(user_id), int(site_id), room, remaining_ttl
+    return room, remaining_ttl

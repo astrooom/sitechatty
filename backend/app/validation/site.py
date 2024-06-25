@@ -44,15 +44,15 @@ def BaseURL(message=None):
 class CreateForm(Form):
     name = StringField('name', validators=[
         DataRequired(),
-        Length(min=1, max=80),
+        Length(min=1, max=32),
         Regexp(r'^[a-zA-Z0-9]+$', message="Name must contain only letters and numbers.")
     ])
 
 class AddScanForm(Form):
     site_id = IntegerField('site_id', validators=[DataRequired()])
-    max_depth = IntegerField('max_depth', default=2, validators=[
+    max_depth = IntegerField('max_depth', default=3, validators=[
         DataRequired(), 
-        NumberRange(min=1, max=4, message='Max depth must be between 1 and 4')
+        NumberRange(min=1, max=5, message='Max depth must be between 1 and 5')
     ])
     url = StringField('url', validators=[
         DataRequired(), 

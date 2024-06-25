@@ -4,10 +4,9 @@ import { getRefreshedAuthToken } from './lib/middleware';
 
 async function middlewareSettings(request: NextRequest) {
 
-
   const { pathname, origin, basePath } = request.nextUrl;
 
-  if (`${basePath}${pathname}`.startsWith("/api/auth")) return;
+  // if (`${basePath}${pathname}`.startsWith("/api/auth")) return;
 
   const response = NextResponse.next()
 
@@ -20,6 +19,7 @@ async function middlewareSettings(request: NextRequest) {
   if (refreshToken?.value && !accessToken?.value) {
     console.log("Access token expired, refreshing...")
     const { access_token: newAuthToken } = await getRefreshedAuthToken(refreshToken.value);
+
     response.cookies.set({
       name: 'access_token',
       value: newAuthToken.value,
@@ -34,6 +34,8 @@ async function middlewareSettings(request: NextRequest) {
     accessToken = {
       name: 'access_token', value: newAuthToken.value
     };
+
+    console.log(`Access token refreshed with new value: '${newAuthToken.value}'`)
   }
 
   /*
@@ -65,6 +67,5 @@ function withHostFromHeaders(middleware: NextMiddleware) {
     return middleware(...args);
   };
 }
-
 
 export default withHostFromHeaders(middlewareSettings);

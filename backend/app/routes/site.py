@@ -7,7 +7,7 @@ from flask_jwt_extended import (
     get_jwt_identity
 )
 from app.config import Config
-from app.models.models import SiteAddedSources, Site, User
+from app.models.models import SiteAddedSources, Site, User, ChatMessage
 from app.utils.validation import validate_form
 from app.validation.site import AddScanForm, CreateForm, CrawlerCrawlForm, AddTextInputForm, UpdateTextInputForm, AddAddedWebpagesForm
 from app.utils.celery import crawl_urls, scan_url
@@ -16,31 +16,6 @@ from datetime import datetime, timezone
 from app.utils.socket import generate_socket_token, verify_socket_token, store_socket_id_data, get_socket_id_data
 
 site = Blueprint('site', __name__)
-
-@site.route('/', methods=['POST'])
-@login_required
-def create():
-    """
-    This endpoint is used to create a new site.
-    """
-    user_id = session["user_id"]
-    
-    form = validate_form(CreateForm, request.get_json(silent=True))
-    name = form.name.data
-    
-    # Check if the user is surpassing their max_sites limit.
-    if Site.query.filter_by(user_id=user_id).count() >= User.query.filter_by(id=user_id).first().max_sites:
-        return jsonify({"error": "Max sites reached"}), 403
-    
-    # Check if the user has already created a site with the same name
-    if Site.query.filter_by(name=name, user_id=user_id).first():
-        return jsonify({"error": "Site already exists"}), 409
-    
-    site = Site(name=name, user_id=user_id)
-    db.session.add(site)
-    db.session.commit()
-    
-    return jsonify({"message": "Site created successfully"}), 201
 
 @site.route('/', methods=['GET'])
 @jwt_required()
@@ -51,6 +26,32 @@ def get():
     user_id = get_jwt_identity()
     sites = Site.query.filter_by(user_id=user_id).all()
     return jsonify({"sites": [site.to_dict() for site in sites]}), 200
+
+@site.route('/', methods=['POST'])
+@jwt_required()
+def create():
+    """
+    This endpoint is used to create a new site.
+    """
+    user_id = get_jwt_identity()
+    
+    form = validate_form(CreateForm, request.get_json(silent=True))
+    name = form.name.data
+    
+    # Check if the user is surpassing their max_sites limit.
+    users_max_sites = User.query.filter_by(id=user_id).first().max_sites
+    if Site.query.filter_by(user_id=user_id).count() >= users_max_sites:
+        return jsonify({"error": f"Max sites reached. You can create up to {users_max_sites} sites."}), 403
+    
+    # Check if the user has already created a site with the same name
+    if Site.query.filter_by(name=name, user_id=user_id).first():
+        return jsonify({"error": "You already have a site with that name."}), 409
+    
+    site = Site(name=name, user_id=user_id)
+    db.session.add(site)
+    db.session.commit()
+    
+    return jsonify(site.to_dict()), 201
 
 @site.route('/<int:site_id>', methods=['DELETE'])
 @login_required
@@ -504,16 +505,28 @@ def handle_join(data):
     
     # Store the socket ID and associated user_id and site_id in Redis
     socket_id = request.sid
-    store_socket_id_data(socket_id, user_id, site_id, room)
+    store_socket_id_data(socket_id, room)
     
     join_room(room)
     emit('status', {'msg': f'{user_id} has entered the room.'}, room=room)
+    
+    fetch_and_emit_chat_history(room)
+    
+def fetch_and_emit_chat_history(room):
+    # Fetch chat messages from the database for this room
+    chat_messages = ChatMessage.query.filter_by(room=room).order_by(ChatMessage.datetime).all()
+    
+    for chat_message in chat_messages:
+        chat_message_dict = chat_message.to_dict()
+        del chat_message_dict['room']
+        chat_message_dict['datetime'] = chat_message_dict['datetime'].isoformat()
+        emit('message', chat_message_dict, room=request.sid)
     
 # Receive ping event and send back time before expiration if close to expiry
 @socketio.on('ping', namespace='/sources')
 def handle_ping():
     try:
-        user_id, site_id, room, remaining_ttl = get_socket_id_data(request.sid)
+        room, remaining_ttl = get_socket_id_data(request.sid)
     except Exception as e:
         emit('error', {'msg': 'Could not verify socket id.'})
         disconnect()
@@ -530,7 +543,8 @@ def handle_search(data):
     print(f"[handle_search] -> Received {data}")
     
     try:
-        user_id, site_id, room, _remaining_ttl = get_socket_id_data(request.sid)
+        room, _remaining_ttl = get_socket_id_data(request.sid)
+        type, user_id, site_id = room.split('_')
     except Exception as e:
         emit('error', {'msg': 'Could not verify socket id.'})
         disconnect()
@@ -545,7 +559,31 @@ def handle_search(data):
     search_results = get_search_results(query_input, site)
     print(f"[handle_search] -> Search results: {search_results}")
     
-    emit('message', {
-        'content': search_results,
-        'sender': "Search Bot",
-        'datetime': datetime.now(timezone.utc).isoformat()}, room=room)
+    if not search_results:
+        persist_and_emit_message(room, "No results found", "Search Bot", "warning")
+        return
+    
+    persist_and_emit_message(room, search_results, "Search Bot", "success")
+    
+def persist_and_emit_message(room, content, sender, level):
+    chat_message = ChatMessage(
+        room=room,
+        content=content,
+        sender=sender,
+        level=level,
+        datetime=datetime.now(timezone.utc)
+    )
+    
+    db.session.add(chat_message)
+    db.session.commit()
+    
+    # Convert to dict and remove room
+    chat_message_dict = chat_message.to_dict()
+    del chat_message_dict['room']
+    
+    # Convert datetime to iso format to allow in JSON
+    chat_message_dict['datetime'] = chat_message_dict['datetime'].isoformat()
+    
+    emit('message', chat_message_dict, room=room)
+    
+    

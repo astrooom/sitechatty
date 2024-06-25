@@ -1,4 +1,5 @@
 'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -10,12 +11,11 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
-// import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import GoogleSignInButton from '../github-auth-button';
+import { useToast } from '../ui/use-toast';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Enter a valid email address' }),
@@ -25,24 +25,44 @@ const formSchema = z.object({
 type UserRegisterFormValue = z.infer<typeof formSchema>;
 
 export default function UserRegisterForm() {
-  const searchParams = useSearchParams();
+
+  const { push } = useRouter();
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(false);
-  const defaultValues = {
-    email: 'demo@gmail.com'
-  };
+
   const form = useForm<UserRegisterFormValue>({
     resolver: zodResolver(formSchema),
-    defaultValues
   });
 
   const onSubmit = async (data: UserRegisterFormValue) => {
-    console.log("Registering...")
-    console.log(data)
-    // signIn('credentials', {
-    //   email: data.email,
-    //   callbackUrl: callbackUrl ?? '/dashboard'
-    // });
+
+    setLoading(true)
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const { error } = await response.json();
+
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Uh oh! There was a problem registering.',
+        description: error
+      });
+    } else {
+      toast({
+        variant: 'default',
+        title: 'Successfully registered!',
+        description: 'Redirecting to Dashboard...'
+      });
+    }
+    setLoading(false)
+    push('/dashboard');
   };
 
   return (

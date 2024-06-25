@@ -13,30 +13,50 @@ from datetime import timedelta
 
 auth = Blueprint('auth', __name__)
 
-ACCESS_TOKEN_RETENTION_SECONDS = 60 * 15 # 15 minutes
+ACCESS_TOKEN_RETENTION_SECONDS = 60 * 1 # 1 minute
 REFRESH_TOKEN_RETENTION_SECONDS = 60 * 60 * 24 * 30 # 30 days
 
 @auth.route('/register', methods=['POST'])
 def register():
     form = validate_form(RegisterForm, request.get_json(silent=True))
     
-    username = form.username.data
     email = form.email.data
     password = form.password.data
     
+    # Check if the user already exists
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already registered'}), 409
+
     # Create new user
     hashed_password = generate_password_hash(password, method='pbkdf2')
-    new_user = User(username=username, email=email, password_hash=hashed_password)
+    new_user = User(email=email, password_hash=hashed_password)
 
     db.session.add(new_user)
     db.session.commit()
     
-    # token = jwt.encode({
-    #     'user_id': new_user.id,
-    # }, current_app.config['SECRET_KEY'], algorithm='HS256')
-
-    # return jsonify({'message': 'User created successfully', 'token': token}), 201
-
+    # Generate tokens for the newly registered user
+    access_token = create_access_token(identity=new_user.id, expires_delta=timedelta(seconds=ACCESS_TOKEN_RETENTION_SECONDS))
+    refresh_token = create_refresh_token(identity=new_user.id, expires_delta=timedelta(seconds=REFRESH_TOKEN_RETENTION_SECONDS))
+    
+    return (
+        jsonify(
+            {
+                "message": "User created successfully",
+                "data": {
+                    "access_token": {
+                        "value": access_token,
+                        "max_age": ACCESS_TOKEN_RETENTION_SECONDS,
+                    },
+                    "refresh_token": {
+                        "value": refresh_token,
+                        "max_age": REFRESH_TOKEN_RETENTION_SECONDS,
+                    },
+                }
+            }
+        ),
+        201,
+    )
+    
 @auth.route('/login', methods=['POST'])
 def login():
     form = validate_form(LoginForm, request.get_json(silent=True))
@@ -87,7 +107,7 @@ def refresh():
 def me():
     user_id = get_jwt_identity()
     user = User.query.filter_by(id=user_id).first()
-    return jsonify({'username': user.username, 'email': user.email}), 200
+    return jsonify({'email': user.email}), 200
 
 @auth.route("/update", methods=["PATCH"])
 @login_required
@@ -96,7 +116,6 @@ def update():
     
     old_password = form.old_password.data
     new_password = form.password.data
-    username = form.username.data
     email = form.email.data
     
     user = User.query.filter_by(id=session["user_id"]).first()
@@ -107,9 +126,6 @@ def update():
         if not check_password_hash(user.password_hash, old_password):
             return jsonify({"error": "Old password is incorrect"}), 400
         user.password_hash = generate_password_hash(new_password, method='pbkdf2')
-
-    if username:
-        user.username = username
     
     if email:
         user.email = email

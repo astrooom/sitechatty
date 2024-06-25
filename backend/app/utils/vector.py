@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from app.utils.classify_url import classify_url
 
+MAX_BIGINT_VALUE = 18446744073709551615
+
 def get_collection(collection_name: str, create_if_not_exists: bool = False):
   if create_if_not_exists:
     return chroma_client.get_or_create_collection(collection_name, embedding_function=embeddings)
@@ -23,7 +25,6 @@ def get_search_results(query, site):
     search_results = langchain_chroma.similarity_search(query)
     combined_search_results = "\n".join([p.page_content for p in search_results])
     return combined_search_results
-
 
 def get_combined_source_chunks(query_results):
     """

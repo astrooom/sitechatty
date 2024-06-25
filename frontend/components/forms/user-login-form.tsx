@@ -29,13 +29,8 @@ export default function UserLoginForm() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  const defaultValues = {
-    email: 'demo@mail.com',
-  };
-
   const form = useForm<UserLoginFormValue>({
     resolver: zodResolver(formSchema),
-    defaultValues
   });
 
   const onSubmit = async (data: UserLoginFormValue) => {

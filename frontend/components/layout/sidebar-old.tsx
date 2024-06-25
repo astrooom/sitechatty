@@ -1,5 +1,5 @@
 import { DashboardNav } from '@/components/dashboard-nav';
-import { getDashboardNavigation } from '@/constants/data';
+import { getDashboardSiteNavigation } from '@/constants/data';
 import { cn } from '@/lib/utils';
 
 export default function Sidebar(siteId: number) {
@@ -13,7 +13,7 @@ export default function Sidebar(siteId: number) {
             <h2 className="mb-2 px-4 text-xl font-semibold tracking-tight">
               Overview
             </h2>
-            <DashboardNav items={getDashboardNavigation(siteId)} />
+            <DashboardNav items={getDashboardSiteNavigation(siteId)} />
           </div>
         </div>
       </div>

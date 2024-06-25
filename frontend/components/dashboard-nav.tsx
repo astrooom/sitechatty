@@ -41,21 +41,18 @@ export function DashboardNav({
     }));
   };
 
-  if (!items?.length) {
-    return null;
-  }
-
   return (
     <div className="grid items-start gap-2">
       <TooltipProvider>
         {items.map((item, index) => {
           const Icon = Icons?.[item?.icon || 'arrowRight'];
-          const hasSubItems = item.subItems && item.subItems.length > 0;
+          // const hasSubItems = item.subItems && item.subItems.length > 0;
+          const hasSubItems = item.subItems && !isMinimized
 
           // If index is 0 (the main dashboard item without a path), check for exact match instead of starting with
           const isOpened = index === 0 ? path === item.href : path.startsWith(item.href)
           return (
-            <div key={index}>
+            <div key={`nav-item-${index}`}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
@@ -112,7 +109,7 @@ export function DashboardNav({
                     const Icon = Icons?.[subItem?.icon!];
 
                     return (
-                      <div className="py-0.5 border-l border-primary/15" key={`${index}-${subIndex}`}>
+                      <div className="py-0.5 border-l border-primary/15" key={`sub-nav-item-${index}-${subIndex}`}>
 
                         <Tooltip key={`${index}-${subIndex}`}>
                           <TooltipTrigger asChild>
@@ -128,7 +125,7 @@ export function DashboardNav({
                               }}
                             >
 
-                              {Icon && <Icon className={`ml-3 size-5`} />}
+                              {Icon && <Icon className={`ml-3 size-4`} />}
 
                               {isMobileNav || (!isMinimized && !isMobileNav) ? (
                                 <span className="mr-2 truncate">{subItem.title}</span>

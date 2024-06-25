@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { DashboardNav } from '@/components/dashboard-nav';
-import { getDashboardNavigation } from '@/constants/data';
+import { getDashboardSiteNavigation } from '@/constants/data';
 import { cn } from '@/lib/utils';
 import { ChevronLeft } from 'lucide-react';
 import { useSidebar } from '@/hooks/useSidebar';
@@ -41,7 +41,7 @@ export default function Sidebar({ siteId, className }: SidebarProps) {
       <div className="space-y-4 py-4">
         <div className="px-3 py-2">
           <div className="mt-3 space-y-1">
-            <DashboardNav items={getDashboardNavigation(siteId)} />
+            <DashboardNav items={getDashboardSiteNavigation(siteId)} />
           </div>
         </div>
       </div>

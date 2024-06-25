@@ -6,7 +6,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import trafilatura
 from app.utils.date import strdate_to_intdate
 import json
-from app.utils.vector import generate_upsertables
+from app.utils.vector import generate_upsertables, MAX_BIGINT_VALUE
 
 class Crawler:
     def __init__(self, chroma_collection):
@@ -119,7 +119,7 @@ class Crawler:
     def get_existing_chunks_ids(self) -> List[dict]:
         results = self.chroma_collection.query(
             query_texts="",
-            n_results=9999999999999999
+            n_results=MAX_BIGINT_VALUE
         )
         return [chunk_id for sublist in results["ids"] for chunk_id in sublist]
 

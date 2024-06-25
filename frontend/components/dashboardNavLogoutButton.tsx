@@ -49,7 +49,7 @@ export function DashboardNavLogoutButton({
         <Button
           variant="link"
           className={
-            'flex justify-start items-center gap-2 overflow-hidden rounded-md py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground'
+            'flex justify-start items-center gap-2 overflow-hidden rounded-md py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground shadow-none'
           }
           onClick={() => {
             doLogout();

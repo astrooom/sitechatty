@@ -9,7 +9,6 @@ from app.utils.embeddings import embeddings
 from .scanner import Scanner
 from .crawler import Crawler
 
-
 # Signals
 def get_task_display_name(kwargs, task_name):
     # Get the display name from kwargs, default to task function name if not provided
@@ -55,7 +54,6 @@ def task_failure_handler(sender=None, task_id=None, task=None, args=None, kwargs
         }))
         redis_client.expire(task_key, timedelta(days=2)) # Expire failed task after 2 days  
         
-# Tasks
 @celery.task(bind=True)
 def scan_url(self, base_url, site_id, max_depth, **kwargs):
     scanner = Scanner(base_url, max_depth, db_session=db.session, db_site_id=site_id, max_urls_allowed=Site.query.get(site_id).max_urls_allowed) # Scans paths recursively from a base url and puts them in the DB.

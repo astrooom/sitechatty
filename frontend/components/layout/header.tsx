@@ -1,6 +1,6 @@
 import ThemeToggle from '@/components/layout/ThemeToggle/theme-toggle';
 import { cn } from '@/lib/utils';
-import { MobileSidebar } from './mobile-sidebar';
+import { MobileSidebar } from '../../app/dashboard/(site)/[site_id]/SiteDashboardMobileSidebar';
 import { UserNav } from './user-nav';
 import Link from 'next/link';
 import {
@@ -39,13 +39,15 @@ export default function Header({ user }: HeaderProps) {
           {/* <UserNav /> */}
 
           {/* <Link href='/dashboard' className={cn(buttonVariants({ variant: 'default' }))}>Dashboard</Link> */}
-
+          {/* 
           {user ? (
             <LogoutButton />
           ) :
             <Link href='/auth/login' className={cn(buttonVariants({ variant: 'default' }))}>Log In</Link>
-          }
+          } */}
 
+
+          <Link href='/dashboard' className={cn(buttonVariants({ variant: 'default' }))}>Dashboard</Link>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

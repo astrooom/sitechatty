@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function flaskFetch(path: string, options?: RequestInit): Promise<NextResponse> {
+
   // Get cookies from client
   const accessToken = cookies().get('access_token')?.value;
 
@@ -15,7 +16,7 @@ export async function flaskFetch(path: string, options?: RequestInit): Promise<N
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   } else {
-    return NextResponse.json({ error: "No access token available." }, { status: 401 });
+    throw new Error("No access token available.");
   }
 
   let response = await fetch(`http://flask:3001${path}`, { ...options, headers });
@@ -24,6 +25,12 @@ export async function flaskFetch(path: string, options?: RequestInit): Promise<N
   let data;
   if (contentType && contentType.includes('application/json')) {
     data = await response.json();
+
+    // If error contains error key, throw error
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
   } else {
     data = { error: 'Unexpected response format' };
   }

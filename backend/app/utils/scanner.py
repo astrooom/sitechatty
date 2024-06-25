@@ -1,8 +1,8 @@
 import requests
-import re
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 from app.models.models import SiteAddedSources, Site
+from sqlalchemy.exc import DataError
 
 class Scanner:
     def __init__(self, base_url, max_depth, db_session, db_site_id, max_urls_allowed=100, ignore_query=True, ignore_hash=True):
@@ -71,9 +71,18 @@ class Scanner:
         links = [self.get_absolute_url(url, link.get('href')) for link in soup.find_all('a', href=True)]
 
         if not self.db_session.query(SiteAddedSources).filter_by(source=url).count():
-            new_source = SiteAddedSources(site_id=self.db_site_id, source=url, source_type="webpage")
-            self.db_session.add(new_source)
-            self.db_session.commit()
+            try:
+                new_source = SiteAddedSources(site_id=self.db_site_id, source=url, source_type="webpage")
+                self.db_session.add(new_source)
+                self.db_session.commit()
+            except DataError as e:
+                self.db_session.rollback()  # Rollback the session to avoid any partial commits
+                if "value too long" in str(e):
+                    # Log the error or handle it as needed
+                    print(f"Skipping insertion. Error: {e}")
+                else:
+                    # If it's a different DataError, re-raise it
+                    raise
 
         for link in links:
             self.scan(link, depth + 1)
