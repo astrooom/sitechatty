@@ -3,7 +3,8 @@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
-export default function LogoutButton() {
+import type { ButtonProps } from '@/components/ui/button';
+export default function LogoutButton({ ...props }: ButtonProps) {
   const { refresh } = useRouter();
   const { toast } = useToast();
 
@@ -34,6 +35,6 @@ export default function LogoutButton() {
       () => {
         doLogout()
       }
-    } variant="default">Log out</Button>
+    } {...props}>Log out</Button>
   );
 }

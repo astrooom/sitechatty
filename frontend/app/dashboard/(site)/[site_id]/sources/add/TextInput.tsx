@@ -31,7 +31,7 @@ export function TextInput({ siteId }: { siteId: number }) {
 
   const { toast } = useToast();
 
-  const { refresh } = useRouter()
+  const { refresh, push } = useRouter()
 
   const [loading, setLoading] = useState(false);
 
@@ -62,6 +62,9 @@ export function TextInput({ siteId }: { siteId: number }) {
       });
 
       refresh()
+
+      // Close modal
+      push(`/dashboard/${siteId}/sources`)
     }
     setLoading(false)
   };

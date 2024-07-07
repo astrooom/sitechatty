@@ -26,10 +26,10 @@ export async function flaskFetch(path: string, options?: RequestInit): Promise<N
   if (contentType && contentType.includes('application/json')) {
     data = await response.json();
 
-    // If error contains error key, throw error
-    if (data.error) {
-      throw new Error(data.error);
-    }
+    // // If error contains error key, throw error
+    // if (data.error) {
+    //   throw new Error(data.error);
+    // }
 
   } else {
     data = { error: 'Unexpected response format' };

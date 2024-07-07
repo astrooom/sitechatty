@@ -30,7 +30,7 @@ export default async function page({ params }: PageProps) {
             href={`/dashboard/${siteId}/sources/add`}
             className={cn(buttonVariants({ variant: 'default' }))}
           >
-            <Plus className="mr-2 h-4 w-4" /> Add New
+            <Plus className="mr-2 h-4 w-4" /> Add Sources
           </Link>
         </div>
 
