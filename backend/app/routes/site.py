@@ -11,9 +11,14 @@ from app.models.models import SiteAddedSources, Site, User, ChatMessage
 from app.utils.validation import validate_form
 from app.validation.site import AddScanForm, CreateForm, CrawlerCrawlForm, AddTextInputForm, UpdateTextInputForm, AddAddedWebpagesForm
 from app.utils.celery import crawl_urls, scan_url
-from app.utils.vector import get_collection, get_combined_source_chunks, generate_upsertables, get_search_results
+from app.utils.vector import get_combined_source_chunks, generate_upsertables, get_search_results
+from app.utils.korvus import get_collection, generate_upsertable
 from datetime import datetime, timezone
 from app.utils.socket import generate_socket_token, verify_socket_token, store_socket_id_data, get_socket_id_data
+from asgiref.sync import AsyncToSync
+import asyncio
+
+C_LONG_INT = 9223372036854775807
 
 site = Blueprint('site', __name__)
 
@@ -77,6 +82,7 @@ def get_scanned_urls(site_id):
     """
     This endpoint is used to get all added sources for a site.
     """
+    
     user_id = get_jwt_identity()
 
     # Check that the site belongs to the user
@@ -93,8 +99,25 @@ def get_scanned_urls(site_id):
     if all_sources:
         # Get entries which are already in used sources (vector db)
         collection_name = f"{site.name}_{user_id}"
-        query_results = get_collection(collection_name).get(where={"source": {"$in": list(all_sources)}}, include=["metadatas"]) 
-        used_sources = {metadata['source'] for metadata in query_results['metadatas']} if query_results['metadatas'] else set()
+        #query_results = get_collection(collection_name).get(where={"source": {"$in": list(all_sources)}}, include=["metadatas"]) 
+        collection = get_collection(collection_name)
+        # query_results = await collection.get(where={"source": {"$in": list(all_sources)}}, include=["metadatas"])
+        
+        async def a():
+            return await collection.get_documents(
+            {
+                "limit": C_LONG_INT,
+                "filter": {
+                    "id": {"$in": list(all_sources)},
+                },
+            }
+        )
+        loop = asyncio.get_event_loop()
+        documents = loop.run_until_complete(a())
+         
+        
+        #used_sources = {metadata['source'] for metadata in query_results['metadatas']} if query_results['metadatas'] else set()
+        used_sources = {document.id for document in documents}
     else:
         used_sources = set()
 
@@ -102,6 +125,7 @@ def get_scanned_urls(site_id):
     for row in response:
         row["is_used"] = row["source"] in used_sources
 
+    print(response)
     return jsonify(response), 200
 
 @site.route('/<int:site_id>/added-sources/webpage', methods=['POST'])
@@ -244,11 +268,13 @@ def scan(site_id):
 
 @site.route('/<int:site_id>/used-sources', methods=['GET'])
 @jwt_required()
-def sites_get_unused_sources(site_id):
+def get_used_sources(site_id):
+
     """
     This endpoint is used to get the contents of all sources from the vector db.
     It will combine all the chunks of each source with their metadata.
     """
+    
     user_id = get_jwt_identity()
     
     # Check that the site belongs to the user
@@ -257,30 +283,33 @@ def sites_get_unused_sources(site_id):
         return jsonify({"error": "Site not found"}), 404
     
     collection_name = f"{site.name}_{user_id}"
+    
     collection = get_collection(collection_name)
     
     # Retrieve all documents with their metadatas
-    sources = collection.get(include=["metadatas", "documents"])
+    async def a():
+        return await collection.get_documents({ "limit": C_LONG_INT })
+    # sources = asyncio.run(a())
     
-    if not sources['ids']:
-        return jsonify([])
+    loop = asyncio.get_event_loop()
+    sources = loop.run_until_complete(a())
 
-    # Dictionary to hold metadata by source
-    combined_sources = {}
+    # # Dictionary to hold metadata by source
+    # combined_sources = {}
 
-    # Combine all chunks of each source
-    for id_, metadata, document in zip(sources['ids'], sources['metadatas'], sources['documents']):
-        source = metadata['source']
+    # # Combine all chunks of each source
+    # for id_, metadata, document in zip(sources['ids'], sources['metadatas'], sources['documents']):
+    #     source = metadata['source']
 
-        # Initialize metadata
-        if source not in combined_sources:
-            combined_sources[source] = metadata
-            combined_sources[source]['id'] = id_
+    #     # Initialize metadata
+    #     if source not in combined_sources:
+    #         combined_sources[source] = metadata
+    #         combined_sources[source]['id'] = id_
     
-    # Convert combined_sources to a list of dicts
-    combined_sources_list = list(combined_sources.values())
-    
-    return jsonify(combined_sources_list), 200
+    # # Convert combined_sources to a list of dicts
+    # combined_sources_list = list(combined_sources.values())
+
+    return jsonify(sources), 200
 
 @site.route('/<int:site_id>/used-sources/<int:added_source_id>', methods=['POST'])
 @jwt_required()
@@ -313,7 +342,7 @@ def sites_use_source(site_id, added_source_id):
 
 @site.route('/<int:site_id>/used-sources/text-input', methods=['POST'])
 @jwt_required()
-def sites_use_text_input(site_id):
+async def sites_use_text_input(site_id):
     """This endpoint is used to add raw input text to the vector db"""
     user_id = get_jwt_identity()
     site = Site.query.filter_by(id=site_id, user_id=user_id).first()
@@ -330,17 +359,19 @@ def sites_use_text_input(site_id):
     collection = get_collection(collection_name)
     
     # Make sure the source doesn't already exist
-    query_results = collection.get(where={"source": title}, include=["metadatas"])
-    if query_results['ids']:
+    documents = await collection.get_documents(
+        {
+            "limit": 1,
+            "filter": {
+                "id": {"$eq": title},
+            },
+        }
+    )
+    
+    if documents:
         return jsonify({"error": "There is already a source with this title."}), 409
     
-    upsertables = generate_upsertables(source=title, source_type="input", content=content)
-    for upsertable in upsertables:
-        collection.upsert(
-            documents=[upsertable['document']],
-            metadatas=[upsertable['metadata']],
-            ids=[upsertable['id']]
-        )
+    await collection.upsert_documents([generate_upsertable(source=title, source_type="input", content=content)])
         
     return jsonify({"message": "Text input added successfully"}), 200
 

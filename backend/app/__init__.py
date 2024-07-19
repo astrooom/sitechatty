@@ -13,6 +13,10 @@ from flask_jwt_extended import (
 )
 from flask_socketio import SocketIO
 import redis
+
+import nest_asyncio
+nest_asyncio.apply()
+
 # from alembic import command
 # from alembic.config import Config as AlembicConfig
 # import os

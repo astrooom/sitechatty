@@ -27,3 +27,5 @@ class Config:
     SESSION_REDIS = from_url('redis://cache:6379/2') # Expects redis object rather than url...
     
     MISC_REDIS_URL = 'redis://cache:6379/3'
+    
+    KORVUS_DATABASE_URL = os.environ.get('KORVUS_DATABASE_URL')
