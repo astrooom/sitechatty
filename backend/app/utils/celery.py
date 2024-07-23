@@ -77,6 +77,32 @@ def crawl_urls(self, site_id: int, urls: list, delete_first: bool = False, do_cl
     crawler = Crawler(collection)
     crawler.process_urls(urls, do_cleanup=do_cleanup)
     return "Completed scan."
+
+# @celery.task(bind=True)
+# def landing_crawl_urls(self, urls: list, client_ip: str, **kwargs):
+    
+#     # Create a test collection with a randomized name
+#     #collection_name = f"test_{client_ip}"
+    
+#     # Do not allow getting the collection to avoid abuse
+#     #collection = chroma_client.create_collection(collection_name, embedding_function=embeddings)
+    
+#     crawler = Crawler()
+#     crawler.process_urls(urls)
+    
+#     return "Completed landing scan."
+
+@celery.task(bind=True)
+def landing_generate_questions(self, client_ip: str, **kwargs):
+    
+    # Get the test collection
+    collection_name = f"test_{client_ip}"
+    collection = chroma_client.get_collection(collection_name)
+    
+    # Generate questions
+    # questions = collection.get_all_questions()
+    
+    #return questions
     
 @celery.task(bind=True)
 def test(self, delay: int, **kwargs):

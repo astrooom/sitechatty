@@ -65,11 +65,13 @@ def create_app():
         from .routes.site import site
         from .routes.auth import auth
         from .routes.task import task
+        from .routes.landing import landing
         
         app.register_blueprint(main, url_prefix='/api')
         app.register_blueprint(site, url_prefix='/api/site')
         app.register_blueprint(auth, url_prefix='/api/auth')
         app.register_blueprint(task, url_prefix='/api/task')
+        app.register_blueprint(landing, url_prefix='/api/landing')
 
         # Create database tables for our data models
         db.create_all()

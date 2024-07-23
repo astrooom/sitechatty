@@ -51,3 +51,7 @@ export const GetPlaygroundWsDetailsActionSchema = z.object({
   site_id: z.number(),
   type: z.enum(['chat', 'sources']),
 })
+
+export const TestScanUrlSchema = z.object({
+  url: z.string(),
+})

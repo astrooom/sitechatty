@@ -1,8 +1,9 @@
 "use server"
 
-import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema, EditUsedSourcesTextInputSchema, addSiteAddedWebpageActionSchema, AddSiteScanActionSchema, GetPlaygroundWsDetailsActionSchema } from "../schemas/tasks";
+import { StartTestTaskActionSchema, GetTasksStatusActionSchema, SetTaskNotifiedActionSchema, ClearTasksActionSchema, UseSiteSourceActionSchema, UnuseSiteSourceActionSchema, DeleteAddedSourceActionSchema, AddUsedSourcesTextInputActionSchema, EditUsedSourcesTextInputSchema, addSiteAddedWebpageActionSchema, AddSiteScanActionSchema, GetPlaygroundWsDetailsActionSchema, TestScanUrlSchema } from "../schemas/tasks";
 import { deleteAddedSource, unuseSiteSource, useSiteSource, addUsedSourcesTextInput, editUsedSourcesTextInput, addSiteAddedWebpage, addSiteScan, getPlaygroundWsDetails } from "../sites";
 import { getTasksStatus, startTestTask, setNotifiedTask, clearTasks } from "../tasks";
+import { testScanUrl } from "../landing";
 import { action } from "@/lib/actions";
 
 
@@ -52,4 +53,8 @@ export const editUsedSourcesTextInputAction = action(EditUsedSourcesTextInputSch
 
 export const getPlaygroundWsDetailsAction = action(GetPlaygroundWsDetailsActionSchema, async ({ site_id, type }) => {
   return await getPlaygroundWsDetails({ site_id, type })
+})
+
+export const testScanUrlAction = action(TestScanUrlSchema, async ({ url }) => {
+  return await testScanUrl({ url })
 })

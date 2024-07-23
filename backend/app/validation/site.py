@@ -47,6 +47,12 @@ class CreateForm(Form):
         Length(min=1, max=32),
         Regexp(r'^[a-zA-Z0-9]+$', message="Name must contain only letters and numbers.")
     ])
+    
+class TestScanForm(Form):
+    url = StringField('url', validators=[
+        DataRequired(), 
+        Length(min=4, max=2083)
+    ])
 
 class AddScanForm(Form):
     site_id = IntegerField('site_id', validators=[DataRequired()])

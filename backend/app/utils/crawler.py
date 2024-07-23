@@ -1,45 +1,12 @@
 from typing import List
-from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
-import asyncio
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import trafilatura
 from app.utils.date import strdate_to_intdate
-import json
 from app.utils.vector import generate_upsertables, MAX_BIGINT_VALUE
+from app.utils.scraping import extract_content, scrape_url
 
 class Crawler:
     def __init__(self, chroma_collection):
         self.chroma_collection = chroma_collection
-        
-    def extract_content(self, html: str):
-        data_str = trafilatura.extract(html, output_format="json")
-        data = json.loads(data_str)
-        title, date, content = data.get("title"), data.get("date"), data.get("raw_text")
-        
-        if not title:
-            raise Exception("Title not found")
-        if not date:
-            raise Exception("Date not found")
-        if not content:
-            raise Exception("Content not found")
-        
-        trimmed_content = trafilatura.utils.trim(content)
-        trimmed_content = trafilatura.utils.sanitize(trimmed_content)
-        
-        return title, date, trimmed_content
-    
-    async def scrape_url(self, url: str):
-        async with async_playwright() as p:
-            browser = await p.firefox.launch(
-                headless=True,
-            )
-            page = await browser.new_page()
-            await stealth_async(page)
-            await page.goto(url)
-            results = await page.content()  # Simply get the HTML content
-            await browser.close()
-            return results
     
     def chunk_text(self, text: str):
         text_splitter = RecursiveCharacterTextSplitter(
@@ -56,15 +23,17 @@ class Crawler:
             # Should onyl run if we are doing full url crawling
             do_cleanup = False     
         
+        return_contents = ""
+        
         added_chunk_ids = []
         for url in urls:
             try:
-                html = asyncio.run(self.scrape_url(url))
+                html = scrape_url(url)
             except Exception as e:
                 print(f"Error scraping url (skipping) {url}: {e}")
                 continue
             try:
-                title, date_str, content = self.extract_content(html)
+                title, date_str, content = extract_content(html)
             except Exception as e:
                 print(f"Error extracting content (skipping) {url}: {e}")
                 continue
@@ -111,10 +80,14 @@ class Crawler:
             
             #     added_chunk_ids.append(chunk_id)
             
+            return_contents += content
+            
         if do_cleanup:
             """Only run if doing full url crawling"""
             print("Cleaning up old chunks...")
             self.cleanup_old_chunks(added_chunk_ids)
+            
+        return return_contents
     
     def get_existing_chunks_ids(self) -> List[dict]:
         results = self.chroma_collection.query(
